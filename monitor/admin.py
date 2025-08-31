@@ -2,8 +2,12 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage
+from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage, RentalPhoto
 import json
+
+@admin.register(RentalPhoto)
+class RentalPhotoAdmin(admin.ModelAdmin):
+    list_display = ("id", "announcement", "image", "created_at")
 
 
 @admin.register(MonitoredGroup)

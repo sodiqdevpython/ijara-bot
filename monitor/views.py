@@ -1,10 +1,12 @@
-from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters
+from django.core.files.base import ContentFile
+import requests
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Avg
 from datetime import datetime, timedelta
-from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage
+from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage, RentalPhoto
 from .serializers import (
     MonitoredGroupSerializer, 
     RentalAnnouncementSerializer, 
@@ -12,7 +14,7 @@ from .serializers import (
     MonitoredMessageSerializer
 )
 
-
+TELEGRAM_BOT_TOKEN = "7413765945:AAHqyNsG2tvyUt0XgBd5OT0FuTA94t1SpEc"
 class MonitoredGroupViewSet(viewsets.ModelViewSet):
     queryset = MonitoredGroup.objects.all()
     serializer_class = MonitoredGroupSerializer
@@ -36,6 +38,35 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
     ]
     ordering_fields = ['created_at', 'confidence_score', 'updated_at']
     ordering = ['-created_at']
+    
+    def perform_create(self, serializer):
+        # avval asosiy e’lonni saqlaymiz
+        announcement = serializer.save()
+
+        # agar rasmlar bo‘lsa
+        for photo in announcement.photos:
+            file_id = photo.get("file_id")
+            if not file_id:
+                continue
+
+            # 1. Telegram’dan fayl path olish
+            file_info_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
+            r = requests.get(file_info_url)
+            result = r.json().get("result")
+
+            if not result:
+                continue
+
+            file_path = result["file_path"]
+            file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+            print("PHOTO URL:", file_url)   # log uchun
+
+            # 2. Faylni yuklab olish va DB ga saqlash
+            file_response = requests.get(file_url)
+            if file_response.status_code == 200:
+                filename = file_path.split("/")[-1]
+                rental_photo = RentalPhoto(announcement=announcement)
+                rental_photo.image.save(filename, ContentFile(file_response.content), save=True)
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -85,6 +116,17 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
             )
         
         return queryset
+    
+    @action(detail=True, methods=["get"])
+    def photo_urls(self, request, pk=None):
+        announcement = self.get_object()
+        urls = get_photo_urls(announcement)
+        
+        # Debug uchun konsolga chiqarib yuborish
+        for url in urls:
+            print(url)
+
+        return Response({"photo_urls": urls})
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -189,6 +231,18 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+    @action(detail=True, methods=["post"])
+    def add_telegram_photo(self, request, pk=None):
+        announcement = self.get_object()
+        file_id = request.data.get("file_id")
+
+        if not file_id:
+            return Response({"error": "file_id is required"}, status=400)
+
+        photo = save_telegram_photo(announcement, file_id)
+        if photo:
+            return Response({"status": "success", "photo_id": photo.id})
+        return Response({"status": "error"}, status=400)
 
 
 class MonitoredMessageViewSet(viewsets.ModelViewSet):
