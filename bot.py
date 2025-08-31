@@ -14,10 +14,8 @@ BOT_TOKEN = "7413765945:AAHqyNsG2tvyUt0XgBd5OT0FuTA94t1SpEc"
 API_BASE = "http://127.0.0.1:8000"
 TIMEOUT = 800
 
-# Media group kutish vaqti (soniyalarda)
 MEDIA_GROUP_TIMEOUT = 2
 
-# Ijara kalit so'zlari
 RENTAL_KEYWORDS = [
     # O'zbek tilida
     "ijara", "ijaraga", "rent", "rental", "arenda", 
@@ -47,24 +45,21 @@ RENTAL_KEYWORDS = [
     "phone", "call", "photo", "pictures", "deposit"
 ]
 
-# Narx belgilarini aniqlash uchun regex
 PRICE_PATTERNS = [
     r'\b\d+[\s]*(?:so\'m|sum|сум|руб|rub|\$|usd|€|eur)\b',
     r'\b\d+[\s]*(?:ming|тыс|k|thousand)\b',
     r'\b\d+[\s]*(?:million|mln|млн)\b',
     r'\$\s*\d+',
     r'\d+\s*\$',
-    r'\b\d{3,}\b'  # 3 yoki undan ko'p raqam
+    r'\b\d{3,}\b'
 ]
 
-# Kontakt ma'lumotlarini aniqlash
 CONTACT_PATTERNS = [
     r'\+?\d{1,4}[\s\-\(\)]*\d{2,3}[\s\-\(\)]*\d{3,4}[\s\-\(\)]*\d{2,4}',  # Telefon raqamlari
     r'@\w+',  # Username
     r't\.me/\w+',  # Telegram link
 ]
 
-# Bot va dispatcher yaratish
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 bot = Bot(
     token=BOT_TOKEN,
@@ -72,9 +67,7 @@ bot = Bot(
 )
 dp = Dispatcher()
 
-# Media group kutish uchun storage
 media_groups: Dict[str, Dict] = {}
-
 
 def backend_post(endpoint: str, payload: dict):
     try:
@@ -97,54 +90,43 @@ async def backend_get(endpoint: str) -> list | dict:
 
 
 def analyze_rental_content(text: str, user_data: dict, media_count: int) -> dict:
-    """Ijara elonini aniqlash va tahlil qilish"""
     if not text:
         text = ""
     
     text_lower = text.lower()
     
-    # Kalit so'zlarni topish
     found_keywords = []
     for keyword in RENTAL_KEYWORDS:
         if keyword.lower() in text_lower:
             found_keywords.append(keyword)
     
-    # Narxlarni topish
     prices_found = []
     for pattern in PRICE_PATTERNS:
         matches = re.findall(pattern, text, re.IGNORECASE)
         prices_found.extend(matches)
     
-    # Kontakt ma'lumotlarini topish
     contacts_found = []
     for pattern in CONTACT_PATTERNS:
         matches = re.findall(pattern, text, re.IGNORECASE)
         contacts_found.extend(matches)
     
-    # Ishonch darajasini hisoblash
     confidence = 0.0
     
-    # Kalit so'zlar uchun ball
     if found_keywords:
         confidence += min(len(found_keywords) * 0.15, 0.6)
     
-    # Narx mavjudligi uchun ball
     if prices_found:
         confidence += 0.25
     
-    # Kontakt ma'lumotlari uchun ball
     if contacts_found:
         confidence += 0.2
     
-    # Media fayllar uchun ball (rasmlar ijara elonida muhim)
     if media_count > 0:
         confidence += min(media_count * 0.05, 0.3)
-    
-    # Username yoki telefon mavjudligi
+
     if user_data.get('username') or any('phone' in str(contact).lower() for contact in contacts_found):
         confidence += 0.1
     
-    # Maksimal 1.0 gacha
     confidence = min(confidence, 1.0)
     
     return {
@@ -152,12 +134,11 @@ def analyze_rental_content(text: str, user_data: dict, media_count: int) -> dict
         'prices_found': prices_found,
         'contacts_found': contacts_found,
         'confidence_score': confidence,
-        'is_likely_rental': confidence >= 0.3  # 30% dan yuqori ishonch darajasi
+        'is_likely_rental': confidence >= 0.3
     }
 
 
 def extract_media_info(message: types.Message) -> dict:
-    """Xabardan media ma'lumotlarini ajratib olish"""
     media_info = {
         'photos': [],
         'videos': [],
@@ -169,7 +150,6 @@ def extract_media_info(message: types.Message) -> dict:
     
     try:
         if message.photo:
-            # Eng katta o'lchamdagi rasmni olish
             largest_photo = max(message.photo, key=lambda x: x.width * x.height)
             media_info['photos'].append({
                 'file_id': largest_photo.file_id,
@@ -233,7 +213,6 @@ def extract_media_info(message: types.Message) -> dict:
 
 
 def merge_media_info(*media_infos) -> dict:
-    """Bir necha media_info ni birlashtirish"""
     merged = {
         'photos': [],
         'videos': [],
@@ -274,9 +253,7 @@ async def upsert_group(chat: types.Chat) -> int:
 
 
 def save_rental_announcement(group_pk: int, main_message: types.Message, analysis_result: dict, merged_media_info: dict, all_texts: List[str]):
-    """Ijara elonini saqlash"""
     try:
-        # Joylashuv ma'lumotlari
         location_data = {}
         if main_message.location:
             location_data = {
@@ -284,15 +261,13 @@ def save_rental_announcement(group_pk: int, main_message: types.Message, analysi
                 'location_longitude': main_message.location.longitude,
                 'location_address': getattr(main_message.location, 'address', None)
             }
-        
-        # Kontakt ma'lumotlarini tayyorlash
+
         contact_info = {
             'telegram_username': main_message.from_user.username,
             'found_contacts': analysis_result.get('contacts_found', []),
             'user_id': main_message.from_user.id
         }
         
-        # Barcha textlarni birlashtirish
         combined_text = "\n".join(filter(None, all_texts))
         
         payload = {
@@ -304,22 +279,18 @@ def save_rental_announcement(group_pk: int, main_message: types.Message, analysi
             "message_text": combined_text,
             "message_id": main_message.message_id,
             
-            # Media ma'lumotlari
             "photos": merged_media_info.get('photos', []),
             "videos": merged_media_info.get('videos', []),
             "documents": merged_media_info.get('documents', []),
             "audio_files": merged_media_info.get('audio_files', []),
             "voice_messages": merged_media_info.get('voice_messages', []),
             
-            # Tahlil natijalari
             "rental_keywords_found": analysis_result.get('keywords_found', []),
             "confidence_score": analysis_result.get('confidence_score', 0.0),
             
-            # Kontakt va joylashuv
             "contact_info": contact_info,
             **location_data,
             
-            # Raw data
             "raw_telegram_data": json.loads(main_message.model_dump_json()),
             
             "is_processed": False,
@@ -335,7 +306,6 @@ def save_rental_announcement(group_pk: int, main_message: types.Message, analysi
 
 
 async def process_media_group(media_group_id: str):
-    """Media groupni qayta ishlash"""
     if media_group_id not in media_groups:
         return
     
@@ -346,16 +316,11 @@ async def process_media_group(media_group_id: str):
         return
     
     try:
-        # Birinchi xabarni asosiy deb hisoblaymiz
         main_message = messages[0]
-        
-        # Guruhni ro'yxatga olish yoki yangilash
         group_pk = await upsert_group(main_message.chat)
         if not group_pk:
             logging.error("Failed to upsert group")
             return
-        
-        # Barcha media ma'lumotlarini yig'ish
         all_media_infos = []
         all_texts = []
         
@@ -363,18 +328,14 @@ async def process_media_group(media_group_id: str):
             media_info = extract_media_info(message)
             all_media_infos.append(media_info)
             
-            # Text yoki caption ni yig'ish
             text_content = message.text or message.caption or ""
             if text_content.strip():
                 all_texts.append(text_content.strip())
         
-        # Media ma'lumotlarini birlashtirish
         merged_media_info = merge_media_info(*all_media_infos)
         
-        # Barcha textlarni birlashtirish
         combined_text = "\n".join(all_texts)
         
-        # Foydalanuvchi ma'lumotlari
         user_data = {
             'username': main_message.from_user.username,
             'first_name': main_message.from_user.first_name,
@@ -382,7 +343,6 @@ async def process_media_group(media_group_id: str):
             'user_id': main_message.from_user.id
         }
         
-        # Media soni
         total_media_count = (
             len(merged_media_info.get('photos', [])) +
             len(merged_media_info.get('videos', [])) +
@@ -391,10 +351,8 @@ async def process_media_group(media_group_id: str):
             len(merged_media_info.get('voice_messages', []))
         )
         
-        # Ijara eloni ehtimolligini tahlil qilish
         analysis = analyze_rental_content(combined_text, user_data, total_media_count)
         
-        # Agar ijara eloni bo'lishi mumkin bo'lsa, saqlash
         if analysis['is_likely_rental'] or analysis['confidence_score'] > 0.15:
             success = save_rental_announcement(
                 group_pk, main_message, analysis, merged_media_info, all_texts
@@ -418,27 +376,21 @@ async def process_media_group(media_group_id: str):
     except Exception as e:
         logging.error(f"Process media group error: {e}")
     finally:
-        # Media group ma'lumotlarini tozalash
         if media_group_id in media_groups:
             del media_groups[media_group_id]
 
 
 async def handle_single_message(message: types.Message):
-    """Yagona xabarni qayta ishlash"""
     try:
-        # Guruhni ro'yxatga olish yoki yangilash
         group_pk = await upsert_group(message.chat)
         if not group_pk:
             logging.error("Failed to upsert group")
             return
         
-        # Media ma'lumotlarini ajratib olish
         media_info = extract_media_info(message)
-        
-        # Xabar matnini olish (text yoki caption)
+
         text_content = message.text or message.caption or ""
         
-        # Foydalanuvchi ma'lumotlari
         user_data = {
             'username': message.from_user.username,
             'first_name': message.from_user.first_name,
@@ -446,7 +398,6 @@ async def handle_single_message(message: types.Message):
             'user_id': message.from_user.id
         }
         
-        # Media soni
         total_media_count = (
             len(media_info.get('photos', [])) +
             len(media_info.get('videos', [])) +
@@ -455,10 +406,8 @@ async def handle_single_message(message: types.Message):
             len(media_info.get('voice_messages', []))
         )
         
-        # Ijara eloni ehtimolligini tahlil qilish
         analysis = analyze_rental_content(text_content, user_data, total_media_count)
         
-        # Agar ijara eloni bo'lishi mumkin bo'lsa, saqlash
         if analysis['is_likely_rental'] or analysis['confidence_score'] > 0.15:
             success = save_rental_announcement(
                 group_pk, message, analysis, media_info, [text_content] if text_content else []
@@ -487,25 +436,20 @@ async def handle_single_message(message: types.Message):
 async def monitor_group_messages(message: types.Message):
     """Guruh xabarlarini kuzatish va ijara elonlarini aniqlash"""
     try:
-        # Media group bor-yo'qligini tekshirish
         media_group_id = getattr(message, 'media_group_id', None)
         
         if media_group_id:
-            # Media group xabari
             if media_group_id not in media_groups:
                 media_groups[media_group_id] = {
                     'messages': [],
                     'timer': None
                 }
             
-            # Xabarni qo'shish
             media_groups[media_group_id]['messages'].append(message)
             
-            # Agar timer mavjud bo'lsa, bekor qilish
             if media_groups[media_group_id]['timer']:
                 media_groups[media_group_id]['timer'].cancel()
             
-            # Yangi timer o'rnatish
             async def delayed_process():
                 await asyncio.sleep(MEDIA_GROUP_TIMEOUT)
                 await process_media_group(media_group_id)
@@ -513,18 +457,15 @@ async def monitor_group_messages(message: types.Message):
             media_groups[media_group_id]['timer'] = asyncio.create_task(delayed_process())
             
         else:
-            # Oddiy xabar (media group emas)
             await handle_single_message(message)
     
     except Exception as e:
         logging.error(f"Monitor group messages error: {e}")
 
 
-# Bot ishga tushirish
 async def main():
-    logging.info("🤖 Rental monitoring bot starting...")
-    logging.info(f"📊 Monitoring keywords: {len(RENTAL_KEYWORDS)} keywords")
-    logging.info(f"⏱️  Media group timeout: {MEDIA_GROUP_TIMEOUT} seconds")
+    logging.info(f"Monitoring keywords: {len(RENTAL_KEYWORDS)} keywords")
+    logging.info(f"Media group timeout: {MEDIA_GROUP_TIMEOUT} seconds")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

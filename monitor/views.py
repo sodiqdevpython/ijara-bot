@@ -48,10 +48,8 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def perform_create(self, serializer):
-        # avval asosiy e’lonni saqlaymiz
         announcement = serializer.save()
 
-        # agar rasmlar bo‘lsa
         for photo in announcement.photos:
             file_id = photo.get("file_id")
             if not file_id:
@@ -67,7 +65,6 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
 
             file_path = result["file_path"]
             file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
-            print("PHOTO URL:", file_url)   # log uchun
 
             # 2. Faylni yuklab olish va DB ga saqlash
             file_response = requests.get(file_url)
@@ -84,7 +81,6 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Confidence score bo'yicha filtrlash
         min_confidence = self.request.query_params.get('min_confidence')
         if min_confidence:
             try:
@@ -93,7 +89,6 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 pass
         
-        # Vaqt oralig'i bo'yicha filtrlash
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         
@@ -111,7 +106,6 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass
         
-        # Media mavjudligi bo'yicha filtrlash
         has_media = self.request.query_params.get('has_media')
         if has_media == 'true':
             queryset = queryset.filter(
@@ -129,10 +123,6 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
     def photo_urls(self, request, pk=None):
         announcement = self.get_object()
         urls = get_photo_urls(announcement)
-        
-        # Debug uchun konsolga chiqarib yuborish
-        for url in urls:
-            print(url)
 
         return Response({"photo_urls": urls})
     
@@ -141,7 +131,6 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
         """Statistik ma'lumotlarni qaytarish"""
         queryset = self.get_queryset()
         
-        # Asosiy hisoblar
         total_count = queryset.count()
         verified_count = queryset.filter(is_verified=True).count()
         processed_count = queryset.filter(is_processed=True).count()

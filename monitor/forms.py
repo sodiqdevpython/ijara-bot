@@ -1,6 +1,5 @@
 from django import forms
 
-# Forms
 class AnnouncementFilterForm(forms.Form):
     search = forms.CharField(required=False, widget=forms.TextInput(attrs={
         'placeholder': 'E\'lonlarda qidirish...', 
