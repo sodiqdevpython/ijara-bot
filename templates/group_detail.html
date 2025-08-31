@@ -1,0 +1,1074 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-inner">
+        <!-- Header with Group Info -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card group-header-card bg-gradient-primary text-white position-relative overflow-hidden">
+                    <div class="group-header-bg position-absolute top-0 end-0">
+                        <i class="fas fa-users opacity-1"></i>
+                    </div>
+                    <div class="card-body py-4 position-relative">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <div class="d-flex align-items-center">
+                                    <div class="group-avatar me-4">
+                                        <div class="avatar avatar-xl bg-white bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-users text-white fa-2x"></i>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h2 class="mb-1">{{ group.title }}</h2>
+                                        <p class="mb-2 opacity-75">
+                                            <i class="fas fa-hashtag me-2"></i>
+                                            Chat ID: {{ group.chat_id }}
+                                        </p>
+                                        <p class="mb-0 small opacity-75">
+                                            <i class="fas fa-calendar-plus me-2"></i>
+                                            Qo'shilgan: {{ group.created_at|date:"d M Y, H:i" }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'groups_list' %}" class="btn btn-outline-light">
+                                        <i class="fas fa-arrow-left me-1"></i>Orqaga
+                                    </a>
+                                    <button class="btn btn-outline-light" onclick="refreshGroupData()">
+                                        <i class="fas fa-sync-alt me-1"></i>Yangilash
+                                    </button>
+                                    <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#groupSettingsModal">
+                                        <i class="fas fa-cog me-1"></i>Sozlamalar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Group Statistics -->
+        <div class="row mb-4">
+            <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
+                <div class="card stat-card h-100 bg-primary text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-home fa-2x mb-2"></i>
+                        <h3 class="mb-1">{{ group_stats.total_announcements }}</h3>
+                        <small class="opacity-75">Jami e'lonlar</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
+                <div class="card stat-card h-100 bg-success text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-check-circle fa-2x mb-2"></i>
+                        <h3 class="mb-1">{{ group_stats.verified_announcements }}</h3>
+                        <small class="opacity-75">Tasdiqlangan</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
+                <div class="card stat-card h-100 bg-warning text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clock fa-2x mb-2"></i>
+                        <h3 class="mb-1">{{ group_stats.unprocessed_announcements }}</h3>
+                        <small class="opacity-75">Kutilmoqda</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
+                <div class="card stat-card h-100 bg-info text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-star fa-2x mb-2"></i>
+                        <h3 class="mb-1">{{ group_stats.high_confidence_announcements }}</h3>
+                        <small class="opacity-75">Yuqori sifat</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
+                <div class="card stat-card h-100 bg-secondary text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-day fa-2x mb-2"></i>
+                        <h3 class="mb-1">{{ group_stats.today_announcements }}</h3>
+                        <small class="opacity-75">Bugungi</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-6 mb-3">
+                <div class="card stat-card h-100 bg-dark text-white">
+                    <div class="card-body text-center">
+                        <i class="fas fa-percentage fa-2x mb-2"></i>
+                        <h3 class="mb-1">{{ group_stats.avg_confidence|floatformat:1 }}%</h3>
+                        <small class="opacity-75">O'rtacha sifat</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters and Search -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <form method="get" class="row g-3 align-items-end" id="filterForm">
+                            <div class="col-md-4">
+                                {{ filter_form.search.label_tag }}
+                                {{ filter_form.search }}
+                            </div>
+                            <div class="col-md-2">
+                                {{ filter_form.confidence_min.label_tag }}
+                                {{ filter_form.confidence_min }}
+                            </div>
+                            <div class="col-md-2">
+                                {{ filter_form.is_verified.label_tag }}
+                                {{ filter_form.is_verified }}
+                            </div>
+                            <div class="col-md-2">
+                                {{ filter_form.date_from.label_tag }}
+                                {{ filter_form.date_from }}
+                            </div>
+                            <div class="col-md-2">
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search me-1"></i>Qidirish
+                                    </button>
+                                    <a href="{% url 'group_detail' group.id %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times me-1"></i>Tozalash
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Announcements Timeline -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-1">E'lonlar Tarixi</h5>
+                                <p class="text-muted mb-0">
+                                    Jami {{ total_announcements }} ta e'lon
+                                    {% if filter_form.search.value %} - "{{ filter_form.search.value }}" qidiruvi{% endif %}
+                                </p>
+                            </div>
+                            <div class="timeline-actions">
+                                <button class="btn btn-outline-primary btn-sm me-2" onclick="toggleAutoScroll()">
+                                    <i class="fas fa-play" id="autoScrollIcon"></i>
+                                    <span id="autoScrollText">Avtomatik scroll</span>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="scrollToTop()">
+                                    <i class="fas fa-arrow-up"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="announcements-timeline" id="announcementsTimeline">
+                            <!-- Loading Indicator for Infinite Scroll -->
+                            <div class="loading-indicator text-center p-3" id="loadingIndicator" style="display: none;">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Yuklanmoqda...</span>
+                                </div>
+                                <p class="mt-2 text-muted">E'lonlar yuklanmoqda...</p>
+                            </div>
+
+                            {% for announcement in announcements %}
+                            <div class="announcement-post border-bottom position-relative" 
+                                 data-announcement-id="{{ announcement.id }}" 
+                                 data-created="{{ announcement.created_at|date:'c' }}">
+                                
+                                <!-- Announcement Header -->
+                                <div class="post-header p-3 pb-0">
+                                    <div class="d-flex align-items-start justify-content-between">
+                                        <div class="d-flex align-items-center">
+                                            <div class="user-avatar me-3">
+                                                <div class="avatar 
+                                                    {% if announcement.is_verified %}bg-success
+                                                    {% elif announcement.confidence_score >= 0.7 %}bg-warning
+                                                    {% elif announcement.confidence_score >= 0.4 %}bg-info
+                                                    {% else %}bg-secondary{% endif %} 
+                                                    bg-gradient rounded-circle d-flex align-items-center justify-content-center">
+                                                    {% if announcement.is_verified %}
+                                                    <i class="fas fa-check text-white"></i>
+                                                    {% else %}
+                                                    <i class="fas fa-user text-white"></i>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="user-info">
+                                                <h6 class="mb-0 fw-bold">
+                                                    {{ announcement.first_name|default:"Noma'lum" }}
+                                                    {% if announcement.last_name %}{{ announcement.last_name }}{% endif %}
+                                                    {% if announcement.username %}
+                                                    <small class="text-muted">@{{ announcement.username }}</small>
+                                                    {% endif %}
+                                                </h6>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    {{ announcement.created_at|date:"d M Y, H:i" }}
+                                                    ({{ announcement.created_at|timesince }} oldin)
+                                                </small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="post-actions">
+                                            <div class="btn-group btn-group-sm">
+                                                {% if not announcement.is_processed %}
+                                                <button class="btn btn-outline-success" 
+                                                        onclick="quickVerifyAnnouncement({{ announcement.id }}, 'verify')"
+                                                        title="Tasdiqlash">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" 
+                                                        onclick="quickVerifyAnnouncement({{ announcement.id }}, 'reject')"
+                                                        title="Rad etish">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                                {% endif %}
+                                                <button class="btn btn-outline-info" 
+                                                        onclick="viewAnnouncementDetails({{ announcement.id }})"
+                                                        title="Batafsil">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <div class="dropdown">
+                                                    <button class="btn btn-outline-secondary dropdown-toggle" 
+                                                            data-bs-toggle="dropdown">
+                                                        <i class="fas fa-ellipsis-h"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        <li><a class="dropdown-item" href="#" onclick="copyAnnouncementLink({{ announcement.id }})">
+                                                            <i class="fas fa-link me-2"></i>Linkni nusxalash
+                                                        </a></li>
+                                                        <li><a class="dropdown-item" href="#" onclick="reportAnnouncement({{ announcement.id }})">
+                                                            <i class="fas fa-flag me-2"></i>Hisobot
+                                                        </a></li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Confidence Score Badge -->
+                                <div class="confidence-badge position-absolute top-0 end-0 m-2">
+                                    <span class="badge 
+                                        {% if announcement.confidence_score >= 0.8 %}bg-success
+                                        {% elif announcement.confidence_score >= 0.6 %}bg-warning
+                                        {% elif announcement.confidence_score >= 0.4 %}bg-info
+                                        {% else %}bg-secondary{% endif %} fs-6">
+                                        {{ announcement.confidence_score|floatformat:1 }}%
+                                    </span>
+                                </div>
+
+                                <!-- Announcement Content -->
+                                <div class="post-content px-3 py-2">
+                                    {% if announcement.message_text %}
+                                    <div class="message-text">
+                                        <p class="mb-3">{{ announcement.message_text|linebreaks }}</p>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Media Content -->
+{% if announcement.photo_files.exists or announcement.videos or announcement.documents %}
+<div class="media-content mb-3">
+    {% if announcement.photo_files.exists %}
+    <div class="photos-gallery mb-2">
+        <div class="row g-2">
+            {% for photo in announcement.photo_files.all|slice:":15" %}
+            <div class="col-3">
+                <div class="media-item">
+                    <img src="{{ photo.image.url }}" 
+                         class="img-fluid rounded" 
+                         style="height: 100px; width: 100%; object-fit: cover; cursor: pointer;"
+                         onclick="openImageModal('{{ photo.image.url }}')"
+                         alt="E'lon rasmi">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Media Indicators -->
+    <div class="media-indicators">
+        {% if announcement.photo_files.exists %}
+        <span class="badge bg-primary-subtle text-primary me-2">
+            <i class="fas fa-image me-1"></i>{{ announcement.photo_files.count }} rasm
+        </span>
+        {% endif %}
+        {% if announcement.videos %}
+        <span class="badge bg-info-subtle text-info me-2">
+            <i class="fas fa-video me-1"></i>{{ announcement.videos|length }} video
+        </span>
+        {% endif %}
+        {% if announcement.documents %}
+        <span class="badge bg-secondary-subtle text-secondary me-2">
+            <i class="fas fa-file me-1"></i>{{ announcement.documents|length }} fayl
+        </span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+                                    <!-- Keywords Found -->
+                                    {% if announcement.rental_keywords_found %}
+                                    <div class="keywords-found mb-2">
+                                        <h6 class="small text-muted mb-1">Topilgan kalit so'zlar:</h6>
+                                        <div class="keywords-tags">
+                                            {% for keyword in announcement.rental_keywords_found %}
+                                            <span class="badge bg-light text-dark me-1">{{ keyword }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Contact Info -->
+                                    {% if announcement.contact_info %}
+                                    <div class="contact-info mb-2">
+                                        <h6 class="small text-muted mb-1">Kontakt ma'lumotlari:</h6>
+                                        <div class="contact-details text-muted small">
+                                            {{ announcement.contact_info|pprint }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Post Footer -->
+                                <div class="post-footer px-3 py-2 bg-light bg-opacity-50">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-6">
+                                            <div class="post-meta text-muted small">
+                                                <span class="me-3">
+                                                    <i class="fas fa-user me-1"></i>
+                                                    ID: {{ announcement.user_id }}
+                                                </span>
+                                                <span class="me-3">
+                                                    <i class="fas fa-comment me-1"></i>
+                                                    Xabar: {{ announcement.message_id }}
+                                                </span>
+                                                {% if announcement.location_latitude and announcement.location_longitude %}
+                                                <span class="me-3">
+                                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                                    Joylashuv mavjud
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 text-md-end">
+                                            <div class="post-status">
+                                                {% if announcement.is_verified %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>Tasdiqlangan
+                                                </span>
+                                                {% elif announcement.is_processed %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-times me-1"></i>Rad etilgan
+                                                </span>
+                                                {% else %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-clock me-1"></i>Kutilmoqda
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="empty-state text-center py-5">
+                                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                                <h4 class="text-muted">E'lonlar topilmadi</h4>
+                                <p class="text-muted">Bu guruhda hali e'lonlar yo'q yoki filtr shartlariga mos kelmaydigan e'lonlar.</p>
+                                <a href="{% url 'group_detail' group.id %}" class="btn btn-primary">
+                                    <i class="fas fa-refresh me-1"></i>Barcha e'lonlarni ko'rsatish
+                                </a>
+                            </div>
+                            {% endfor %}
+
+                            <!-- Load More Button -->
+                            {% if announcements.has_next %}
+                            <div class="text-center p-4" id="loadMoreSection">
+                                <button class="btn btn-outline-primary btn-lg" onclick="loadMoreAnnouncements()">
+                                    <i class="fas fa-plus me-2"></i>Ko'proq yukla
+                                    <span class="badge bg-primary ms-2">{{ announcements.next_page_number }}</span>
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Group Settings Modal -->
+<div class="modal fade" id="groupSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Guruh sozlamalari</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Guruh nomi</label>
+                        <input type="text" class="form-control" value="{{ group.title }}" readonly>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Chat ID</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="{{ group.chat_id }}" readonly>
+                            <button class="btn btn-outline-secondary" onclick="copyGroupId({{ group.chat_id }})">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Monitoring holati</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" checked id="monitoringStatus">
+                            <label class="form-check-label" for="monitoringStatus">
+                                Faol monitoring
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Minimal ishonch darajasi</label>
+                        <input type="range" class="form-range" min="0" max="100" value="70" id="confidenceThreshold">
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span>0%</span>
+                            <span id="confidenceValue">70%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                <button type="button" class="btn btn-primary">Saqlash</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Verify Form (Hidden) -->
+<form id="quickVerifyForm" style="display: none;">
+    {% csrf_token %}
+    {{ verify_form }}
+</form>
+
+<style>
+.group-header-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 150px;
+}
+
+.group-header-bg {
+    font-size: 8rem;
+    color: rgba(255,255,255,0.05);
+    top: -20px;
+    right: -20px;
+}
+
+.stat-card {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+
+.announcement-post {
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.announcement-post:hover {
+    background-color: #f8f9fa;
+}
+
+.announcements-timeline {
+    max-height: 80vh;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.user-avatar .avatar {
+    width: 45px;
+    height: 45px;
+}
+
+.media-placeholder {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.media-placeholder:hover {
+    transform: scale(1.05);
+    background-color: #e9ecef !important;
+}
+
+.more-media {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.keywords-tags .badge {
+    border: 1px solid #dee2e6;
+}
+
+.post-status .badge {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+}
+
+.confidence-badge {
+    z-index: 10;
+}
+
+.post-actions .btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Infinite scroll animation */
+.announcement-post {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: slideInUp 0.5s ease-out forwards;
+}
+
+@keyframes slideInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Auto scroll indicator */
+.auto-scroll-active {
+    background-color: #28a745 !important;
+    border-color: #28a745 !important;
+}
+
+/* Loading states */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+/* Custom scrollbar */
+.announcements-timeline::-webkit-scrollbar {
+    width: 8px;
+}
+
+.announcements-timeline::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.announcements-timeline::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.announcements-timeline::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .group-header-card .card-body {
+        padding: 2rem 1rem;
+    }
+    
+    .stat-card .card-body {
+        padding: 1rem 0.5rem;
+    }
+    
+    .announcement-post .post-header {
+        padding: 1rem;
+    }
+    
+    .post-actions .btn-group {
+        flex-direction: column;
+    }
+    
+    .photos-gallery .col-3 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+}
+
+/* Print styles */
+@media print {
+    .post-actions,
+    .timeline-actions,
+    .btn,
+    .modal {
+        display: none !important;
+    }
+    
+    .announcement-post {
+        break-inside: avoid;
+        margin-bottom: 1rem;
+        border: 1px solid #ddd;
+        padding: 1rem;
+    }
+}
+</style>
+
+<script>
+let currentPage = {{ announcements.number }};
+let hasNextPage = {{ announcements.has_next|yesno:"true,false" }};
+let isLoading = false;
+let autoScrollInterval;
+let isAutoScrollActive = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    setupInfiniteScroll();
+    setupAutoScroll();
+    setupConfidenceSlider();
+    animateAnnouncementCards();
+});
+
+function setupInfiniteScroll() {
+    const timeline = document.getElementById('announcementsTimeline');
+    
+    timeline.addEventListener('scroll', function() {
+        if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) {
+            if (hasNextPage && !isLoading) {
+                loadMoreAnnouncements();
+            }
+        }
+    });
+
+    // Also check for scroll to top for loading older announcements
+    timeline.addEventListener('scroll', function() {
+        if (this.scrollTop <= 100) {
+            // Could implement loading older announcements here
+        }
+    });
+}
+
+function loadMoreAnnouncements() {
+    if (isLoading || !hasNextPage) return;
+    
+    isLoading = true;
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const loadMoreSection = document.getElementById('loadMoreSection');
+    
+    if (loadingIndicator) loadingIndicator.style.display = 'block';
+    if (loadMoreSection) loadMoreSection.style.display = 'none';
+    
+    const nextPage = currentPage + 1;
+    const url = new URL(window.location);
+    url.searchParams.set('page', nextPage);
+    
+    fetch(url.toString(), {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.announcements && data.announcements.length > 0) {
+            appendAnnouncements(data.announcements);
+            currentPage = nextPage;
+            hasNextPage = data.has_next;
+            
+            // Update load more button
+            if (hasNextPage && loadMoreSection) {
+                loadMoreSection.style.display = 'block';
+                const badge = loadMoreSection.querySelector('.badge');
+                if (badge) badge.textContent = data.next_page_number;
+            }
+        } else {
+            hasNextPage = false;
+            if (loadMoreSection) loadMoreSection.style.display = 'none';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading announcements:', error);
+        showNotification('E\'lonlarni yuklashda xatolik', 'error');
+    })
+    .finally(() => {
+        isLoading = false;
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+    });
+}
+
+function appendAnnouncements(announcements) {
+    const timeline = document.getElementById('announcementsTimeline');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    
+    announcements.forEach(announcement => {
+        const announcementHTML = createAnnouncementHTML(announcement);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = announcementHTML;
+        const announcementElement = tempDiv.firstElementChild;
+        
+        timeline.insertBefore(announcementElement, loadingIndicator);
+        
+        // Animate the new announcement
+        setTimeout(() => {
+            announcementElement.style.animationDelay = '0s';
+        }, 100);
+    });
+}
+
+function createAnnouncementHTML(announcement) {
+    const verifiedBadge = announcement.is_verified ? 
+        '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Tasdiqlangan</span>' :
+        (announcement.is_processed ? 
+            '<span class="badge bg-secondary"><i class="fas fa-times me-1"></i>Rad etilgan</span>' :
+            '<span class="badge bg-warning"><i class="fas fa-clock me-1"></i>Kutilmoqda</span>');
+    const mediaContent = announcement.has_photos ? 
+        `<div class="media-indicators">
+            <span class="badge bg-primary-subtle text-primary me-2">
+                <i class="fas fa-image me-1"></i>${announcement.photos_count} rasm
+            </span>
+         </div>` : '';
+    const confidenceClass = announcement.confidence_score >= 0.8 ? 'bg-success' :
+                           announcement.confidence_score >= 0.6 ? 'bg-warning' :
+                           announcement.confidence_score >= 0.4 ? 'bg-info' : 'bg-secondary';
+    
+    const avatarClass = announcement.is_verified ? 'bg-success' :
+                       announcement.confidence_score >= 0.7 ? 'bg-warning' :
+                       announcement.confidence_score >= 0.4 ? 'bg-info' : 'bg-secondary';
+    
+    const actionButtons = !announcement.is_processed ? 
+        `<button class="btn btn-outline-success" onclick="quickVerifyAnnouncement(${announcement.id}, 'verify')" title="Tasdiqlash">
+            <i class="fas fa-check"></i>
+         </button>
+         <button class="btn btn-outline-danger" onclick="quickVerifyAnnouncement(${announcement.id}, 'reject')" title="Rad etish">
+            <i class="fas fa-times"></i>
+         </button>` : '';
+    
+    return `
+        <div class="announcement-post border-bottom position-relative" data-announcement-id="${announcement.id}">
+            <div class="post-header p-3 pb-0">
+                <div class="d-flex align-items-start justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <div class="user-avatar me-3">
+                            <div class="avatar ${avatarClass} bg-gradient rounded-circle d-flex align-items-center justify-content-center">
+                                ${announcement.is_verified ? '<i class="fas fa-check text-white"></i>' : '<i class="fas fa-user text-white"></i>'}
+                            </div>
+                        </div>
+                        <div class="user-info">
+                            <h6 class="mb-0 fw-bold">
+                                ${announcement.first_name || 'Noma\'lum'}
+                                ${announcement.username ? `<small class="text-muted">@${announcement.username}</small>` : ''}
+                            </h6>
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>
+                                ${announcement.created_at}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="post-actions">
+                        <div class="btn-group btn-group-sm">
+                            ${actionButtons}
+                            <button class="btn btn-outline-info" onclick="viewAnnouncementDetails(${announcement.id})" title="Batafsil">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="confidence-badge position-absolute top-0 end-0 m-2">
+                <span class="badge ${confidenceClass} fs-6">${announcement.confidence_score}%</span>
+            </div>
+            <div class="post-content px-3 py-2">
+                ${announcement.message_text ? `<div class="message-text"><p class="mb-3">${announcement.message_text}</p></div>` : ''}
+                ${(announcement.photos_count || announcement.videos_count) ? 
+                    `<div class="media-indicators">
+                        ${announcement.photos_count ? `<span class="badge bg-primary-subtle text-primary me-2"><i class="fas fa-image me-1"></i>${announcement.photos_count} rasm</span>` : ''}
+                        ${announcement.videos_count ? `<span class="badge bg-info-subtle text-info me-2"><i class="fas fa-video me-1"></i>${announcement.videos_count} video</span>` : ''}
+                     </div>` : ''}
+            </div>
+            <div class="post-footer px-3 py-2 bg-light bg-opacity-50">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="post-meta text-muted small">
+                            <span class="me-3"><i class="fas fa-user me-1"></i>ID: ${announcement.id}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <div class="post-status">${verifiedBadge}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function quickVerifyAnnouncement(announcementId, action) {
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('announcement_id', announcementId);
+    formData.append('action', action);
+    
+    // Show loading state
+    const announcementPost = document.querySelector(`[data-announcement-id="${announcementId}"]`);
+    const actionButtons = announcementPost.querySelectorAll('.post-actions button');
+    actionButtons.forEach(btn => {
+        btn.disabled = true;
+        if (btn.onclick && btn.onclick.toString().includes(action)) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
+    });
+    
+    fetch('{% url "quick_verify" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateAnnouncementState(announcementId, data.new_state, action);
+            showNotification(data.message, data.status);
+        } else {
+            showNotification(data.message, 'error');
+            // Restore buttons
+            actionButtons.forEach(btn => btn.disabled = false);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Xatolik yuz berdi', 'error');
+        actionButtons.forEach(btn => btn.disabled = false);
+    });
+}
+
+function updateAnnouncementState(announcementId, newState, action) {
+    const announcementPost = document.querySelector(`[data-announcement-id="${announcementId}"]`);
+    
+    // Update avatar
+    const avatar = announcementPost.querySelector('.user-avatar .avatar');
+    if (newState.is_verified) {
+        avatar.className = 'avatar bg-success bg-gradient rounded-circle d-flex align-items-center justify-content-center';
+        avatar.innerHTML = '<i class="fas fa-check text-white"></i>';
+    } else if (newState.is_processed) {
+        avatar.className = 'avatar bg-secondary bg-gradient rounded-circle d-flex align-items-center justify-content-center';
+        avatar.innerHTML = '<i class="fas fa-times text-white"></i>';
+    }
+    
+    // Update status badge
+    const statusBadge = announcementPost.querySelector('.post-status');
+    if (newState.is_verified) {
+        statusBadge.innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Tasdiqlangan</span>';
+    } else if (newState.is_processed) {
+        statusBadge.innerHTML = '<span class="badge bg-secondary"><i class="fas fa-times me-1"></i>Rad etilgan</span>';
+    }
+    
+    // Remove action buttons
+    const actionsContainer = announcementPost.querySelector('.post-actions .btn-group');
+    const verifyRejectButtons = actionsContainer.querySelectorAll('button[onclick*="quickVerifyAnnouncement"]');
+    verifyRejectButtons.forEach(btn => btn.remove());
+}
+
+function setupAutoScroll() {
+    const timeline = document.getElementById('announcementsTimeline');
+    
+    timeline.addEventListener('scroll', function() {
+        // Pause auto-scroll if user manually scrolls
+        if (isAutoScrollActive && Math.abs(this.scrollTop - this.scrollHeight + this.clientHeight) > 50) {
+            toggleAutoScroll();
+        }
+    });
+}
+
+function toggleAutoScroll() {
+    const icon = document.getElementById('autoScrollIcon');
+    const text = document.getElementById('autoScrollText');
+    const btn = icon.closest('button');
+    
+    if (isAutoScrollActive) {
+        clearInterval(autoScrollInterval);
+        isAutoScrollActive = false;
+        icon.className = 'fas fa-play';
+        text.textContent = 'Avtomatik scroll';
+        btn.classList.remove('auto-scroll-active');
+    } else {
+        autoScrollInterval = setInterval(() => {
+            const timeline = document.getElementById('announcementsTimeline');
+            timeline.scrollTop = timeline.scrollHeight;
+        }, 3000);
+        isAutoScrollActive = true;
+        icon.className = 'fas fa-pause';
+        text.textContent = 'To\'xtatish';
+        btn.classList.add('auto-scroll-active');
+    }
+}
+
+function scrollToTop() {
+    const timeline = document.getElementById('announcementsTimeline');
+    timeline.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setupConfidenceSlider() {
+    const slider = document.getElementById('confidenceThreshold');
+    const valueDisplay = document.getElementById('confidenceValue');
+    
+    if (slider && valueDisplay) {
+        slider.addEventListener('input', function() {
+            valueDisplay.textContent = this.value + '%';
+        });
+    }
+}
+
+function animateAnnouncementCards() {
+    const posts = document.querySelectorAll('.announcement-post');
+    posts.forEach((post, index) => {
+        post.style.animationDelay = `${index * 0.1}s`;
+    });
+}
+
+function refreshGroupData() {
+    const btn = event.target;
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Yuklanmoqda...';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+function viewAnnouncementDetails(announcementId) {
+    window.open(`/admin/rental/rentalannouncement/${announcementId}/change/`, '_blank');
+}
+
+function copyAnnouncementLink(announcementId) {
+    const link = `${window.location.origin}/admin/rental/rentalannouncement/${announcementId}/change/`;
+    navigator.clipboard.writeText(link).then(() => {
+        showNotification('E\'lon linki nusxalandi', 'success');
+    });
+}
+
+function copyGroupId(chatId) {
+    navigator.clipboard.writeText(chatId).then(() => {
+        showNotification('Guruh ID nusxalandi: ' + chatId, 'success');
+    });
+}
+
+function reportAnnouncement(announcementId) {
+    if (confirm('Bu e\'lonni hisobot qilishni xohlaysizmi?')) {
+        showNotification('Hisobot yuborildi', 'info');
+    }
+}
+
+function showNotification(message, type = 'info') {
+    const alertClass = `alert-${type}`;
+    const iconClass = type === 'success' ? 'fa-check-circle' : 
+                     type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas ${iconClass} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification && notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // R for refresh
+    if (e.key === 'r' || e.key === 'R') {
+        if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            refreshGroupData();
+        }
+    }
+    
+    // Space for auto-scroll toggle
+    if (e.code === 'Space' && e.target === document.body) {
+        e.preventDefault();
+        toggleAutoScroll();
+    }
+    
+    // Arrow keys for navigation
+    if (e.key === 'ArrowUp' && e.ctrlKey) {
+        e.preventDefault();
+        scrollToTop();
+    }
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+    }
+});
+
+
+function openImageModal(imageUrl) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Rasm ko'rish</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="${imageUrl}" style="height: 500px; object-fit: contain" class="img-fluid" alt="Rasm">
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    modal.addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+    });
+}
+
+function showAllPhotos(announcementId) {
+    // Barcha rasmlarni ko'rsatish funksiyasi
+    alert('Barcha rasmlarni ko\'rish funksiyasi tez orada qo\'shiladi');
+}
+</script>
+
+{% endblock content %}

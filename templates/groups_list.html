@@ -1,0 +1,664 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-inner">
+        <!-- Header -->
+        <div class="d-flex align-items-center justify-content-between flex-column flex-md-row pt-2 pb-4">
+            <div>
+                <h3 class="fw-bold mb-3">
+                    <i class="fas fa-users me-2 text-primary"></i>
+                    Monitoring Guruhlari
+                </h3>
+                <h6 class="op-7 mb-2">Jami {{ total_groups }} ta guruh monitoring qilinmoqda</h6>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
+                    <i class="fas fa-filter me-1"></i> Filtr
+                </button>
+                <button class="btn btn-primary" onclick="refreshGroups()">
+                    <i class="fas fa-sync-alt me-1"></i> Yangilash
+                </button>
+            </div>
+        </div>
+
+        <!-- Search and Sort Bar -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Guruh nomi yoki ID bo'yicha qidirish..." 
+                           value="{{ search_query }}" id="searchInput" onkeypress="handleSearchKeypress(event)">
+                    <button class="btn btn-outline-secondary" onclick="performSearch()">Qidirish</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select" onchange="changeSorting(this.value)" id="sortSelect">
+                    <option value="-total_announcements" {% if sort_by == '-total_announcements' %}selected{% endif %}>
+                        E'lonlar soni (ko'pdan kam)
+                    </option>
+                    <option value="total_announcements" {% if sort_by == 'total_announcements' %}selected{% endif %}>
+                        E'lonlar soni (kamdan ko'p)
+                    </option>
+                    <option value="-avg_confidence" {% if sort_by == '-avg_confidence' %}selected{% endif %}>
+                        Sifat (yuqoridan past)
+                    </option>
+                    <option value="avg_confidence" {% if sort_by == 'avg_confidence' %}selected{% endif %}>
+                        Sifat (pastdan yuqori)
+                    </option>
+                    <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Nomi (A-Z)</option>
+                    <option value="-title" {% if sort_by == '-title' %}selected{% endif %}>Nomi (Z-A)</option>
+                    <option value="-created_at" {% if sort_by == '-created_at' %}selected{% endif %}>Yangi</option>
+                    <option value="created_at" {% if sort_by == 'created_at' %}selected{% endif %}>Eski</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Groups Grid -->
+        <div class="row" id="groupsContainer">
+            {% for group in groups %}
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-4 group-card" data-group-id="{{ group.id }}">
+                <div class="card group-item h-100 position-relative overflow-hidden hover-lift">
+                    <!-- Background Pattern -->
+                    <div class="group-bg-pattern position-absolute top-0 end-0">
+                        <i class="fas fa-users opacity-1"></i>
+                    </div>
+
+                    <div class="card-body">
+                        <!-- Header -->
+                        <div class="d-flex align-items-start justify-content-between mb-3">
+                            <div class="group-avatar">
+                                <div class="avatar avatar-lg bg-primary bg-gradient rounded-circle d-flex align-items-center justify-content-center">
+                                    <i class="fas fa-users text-white fa-lg"></i>
+                                </div>
+                            </div>
+                            <div class="group-status">
+                                {% if group.today_announcements > 0 %}
+                                <span class="badge bg-success pulse-dot">Faol</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Sokin</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Group Info -->
+                        <div class="group-info mb-3">
+                            <h5 class="card-title mb-1 fw-bold" title="{{ group.title }}">
+                                {{ group.title|truncatechars:30 }}
+                            </h5>
+                            <p class="text-muted small mb-2">
+                                <i class="fas fa-hashtag me-1"></i>
+                                ID: {{ group.chat_id }}
+                            </p>
+                            {% if group.last_announcement %}
+                            <p class="text-muted small">
+                                <i class="fas fa-clock me-1"></i>
+                                Oxirgi faollik: {{ group.last_announcement|timesince }} oldin
+                            </p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Statistics -->
+                        <div class="group-stats mb-3">
+                            <div class="row g-2 text-center">
+                                <div class="col-6">
+                                    <div class="stat-item p-2 bg-light rounded">
+                                        <div class="stat-number text-primary fw-bold">{{ group.total_announcements }}</div>
+                                        <div class="stat-label small text-muted">Jami e'lonlar</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="stat-item p-2 bg-light rounded">
+                                        <div class="stat-number text-success fw-bold">{{ group.verified_announcements }}</div>
+                                        <div class="stat-label small text-muted">Tasdiqlangan</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quality Indicator -->
+                        <div class="group-quality mb-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="small text-muted">Sifat darajasi:</span>
+                                <span class="fw-semibold 
+                                    {% if group.avg_confidence >= 0.8 %}text-success
+                                    {% elif group.avg_confidence >= 0.6 %}text-warning
+                                    {% elif group.avg_confidence >= 0.4 %}text-info
+                                    {% else %}text-danger{% endif %}">
+                                    {{ group.avg_confidence|floatformat:1 }}%
+                                </span>
+                            </div>
+                            <div class="progress mt-1" style="height: 4px;">
+                                <div class="progress-bar 
+                                    {% if group.avg_confidence >= 0.8 %}bg-success
+                                    {% elif group.avg_confidence >= 0.6 %}bg-warning
+                                    {% elif group.avg_confidence >= 0.4 %}bg-info
+                                    {% else %}bg-danger{% endif %}" 
+                                    style="width: {{ group.avg_confidence|floatformat:0 }}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Today's Activity -->
+                        {% if group.today_announcements > 0 %}
+                        <div class="today-activity mb-3">
+                            <div class="alert alert-success alert-sm py-2 px-3 mb-0">
+                                <i class="fas fa-chart-line me-1"></i>
+                                <strong>{{ group.today_announcements }}</strong> ta bugungi e'lon
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Actions -->
+                        <div class="group-actions">
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'group_detail' group.id %}" class="btn btn-primary btn-sm flex-grow-1">
+                                    <i class="fas fa-eye me-1"></i>
+                                    Ko'rish
+                                </a>
+                                <button class="btn btn-outline-secondary btn-sm" 
+                                        onclick="showGroupStats({{ group.id }})" 
+                                        title="Statistika">
+                                    <i class="fas fa-chart-bar"></i>
+                                </button>
+                                <button class="btn btn-outline-info btn-sm" 
+                                        onclick="copyGroupId({{ group.chat_id }})" 
+                                        title="ID nusxalash">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">Guruhlar topilmadi</h4>
+                    <p class="text-muted">Qidiruv shartlaringizni o'zgartiring yoki yangi guruhlar qo'shing</p>
+                    <button class="btn btn-primary" onclick="clearSearch()">
+                        <i class="fas fa-refresh me-1"></i>Barcha guruhlarni ko'rsatish
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if groups.has_other_pages %}
+        <div class="d-flex justify-content-center mt-4">
+            <nav aria-label="Groups pagination">
+                <ul class="pagination pagination-lg">
+                    {% if groups.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ groups.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in groups.paginator.page_range %}
+                        {% if groups.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                        {% elif num > groups.number|add:'-3' and num < groups.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if groups.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ groups.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if sort_by %}&sort={{ sort_by }}{% endif %}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+
+        <!-- Summary Footer -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="card bg-light">
+                    <div class="card-body text-center py-3">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="summary-stat">
+                                    <h4 class="text-primary mb-0">{{ total_groups }}</h4>
+                                    <small class="text-muted">Jami guruhlar</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="summary-stat">
+                                    <h4 class="text-success mb-0" id="activeTodayCount">-</h4>
+                                    <small class="text-muted">Bugun faol</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="summary-stat">
+                                    <h4 class="text-info mb-0" id="totalAnnouncementsSum">-</h4>
+                                    <small class="text-muted">Jami e'lonlar</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="summary-stat">
+                                    <h4 class="text-warning mb-0" id="avgQualityScore">-</h4>
+                                    <small class="text-muted">O'rtacha sifat</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Guruhlarni filtrlash</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="filterForm">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Guruh nomi</label>
+                            <input type="text" class="form-control" name="group_name" placeholder="Guruh nomi...">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Min e'lonlar soni</label>
+                            <input type="number" class="form-control" name="min_announcements" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Min sifat (%)</label>
+                            <input type="number" class="form-control" name="min_quality" min="0" max="100">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Faollik darajasi</label>
+                            <select class="form-select" name="activity_level">
+                                <option value="">Barcha guruhlar</option>
+                                <option value="active_today">Bugun faol</option>
+                                <option value="active_week">Hafta ichida faol</option>
+                                <option value="inactive">Faol emas</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="clearFilters()">Tozalash</button>
+                <button type="button" class="btn btn-primary" onclick="applyFilters()">Qo'llash</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Group Stats Modal -->
+<div class="modal fade" id="groupStatsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Guruh statistikasi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="groupStatsContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Ma'lumotlar yuklanmoqda...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.group-item {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.group-item:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+.group-bg-pattern {
+    font-size: 4rem;
+    color: rgba(0,0,0,0.03);
+    top: -10px;
+    right: -10px;
+}
+
+.pulse-dot {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+.stat-item {
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    transform: scale(1.05);
+    background-color: #e9ecef !important;
+}
+
+.alert-sm {
+    font-size: 0.875rem;
+}
+
+.hover-lift {
+    transition: transform 0.3s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-5px);
+}
+
+.summary-stat h4 {
+    font-weight: 700;
+}
+
+.group-card {
+    animation: fadeInUp 0.6s ease-out;
+    animation-fill-mode: both;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 40px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+/* Staggered animation */
+{% for group in groups %}
+.group-card:nth-child({{ forloop.counter }}) {
+    animation-delay: {{ forloop.counter|add:"-1"|floatformat:1 }}s;
+}
+{% endfor %}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .group-item {
+        margin-bottom: 1rem;
+    }
+    
+    .summary-stat {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    calculateSummaryStats();
+});
+
+function calculateSummaryStats() {
+    const groups = document.querySelectorAll('.group-card');
+    let activeTodayCount = 0;
+    let totalAnnouncementsSum = 0;
+    let qualitySum = 0;
+    let qualityCount = 0;
+
+    groups.forEach(groupCard => {
+        // Count today's active groups
+        const todayAlert = groupCard.querySelector('.today-activity');
+        if (todayAlert) {
+            activeTodayCount++;
+        }
+
+        // Sum total announcements
+        const totalAnnouncements = parseInt(groupCard.querySelector('.stat-number.text-primary').textContent);
+        totalAnnouncementsSum += totalAnnouncements;
+
+        // Calculate average quality
+        const qualityText = groupCard.querySelector('.fw-semibold').textContent.replace('%', '');
+        const quality = parseFloat(qualityText);
+        if (!isNaN(quality)) {
+            qualitySum += quality;
+            qualityCount++;
+        }
+    });
+
+    // Update summary
+    document.getElementById('activeTodayCount').textContent = activeTodayCount;
+    document.getElementById('totalAnnouncementsSum').textContent = totalAnnouncementsSum.toLocaleString();
+    document.getElementById('avgQualityScore').textContent = qualityCount > 0 ? 
+        (qualitySum / qualityCount).toFixed(1) + '%' : '0%';
+}
+
+function handleSearchKeypress(event) {
+    if (event.key === 'Enter') {
+        performSearch();
+    }
+}
+
+function performSearch() {
+    const query = document.getElementById('searchInput').value;
+    const sortBy = document.getElementById('sortSelect').value;
+    const url = new URL(window.location);
+    
+    if (query.trim()) {
+        url.searchParams.set('search', query);
+    } else {
+        url.searchParams.delete('search');
+    }
+    
+    url.searchParams.set('sort', sortBy);
+    url.searchParams.delete('page'); // Reset to first page
+    
+    window.location.href = url.toString();
+}
+
+function changeSorting(sortValue) {
+    const url = new URL(window.location);
+    url.searchParams.set('sort', sortValue);
+    url.searchParams.delete('page'); // Reset to first page
+    window.location.href = url.toString();
+}
+
+function clearSearch() {
+    const url = new URL(window.location);
+    url.searchParams.delete('search');
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+}
+
+function refreshGroups() {
+    const btn = event.target;
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Yuklanmoqda...';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+function copyGroupId(chatId) {
+    navigator.clipboard.writeText(chatId).then(() => {
+        showNotification('Guruh ID nusxalandi: ' + chatId, 'success');
+    }).catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = chatId;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showNotification('Guruh ID nusxalandi: ' + chatId, 'success');
+    });
+}
+
+function showGroupStats(groupId) {
+    const modal = new bootstrap.Modal(document.getElementById('groupStatsModal'));
+    modal.show();
+    
+    // Load stats via AJAX (simulate for now)
+    setTimeout(() => {
+        const statsContent = document.getElementById('groupStatsContent');
+        statsContent.innerHTML = `
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h3>156</h3>
+                            <p class="mb-0">Jami e'lonlar</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h3>89</h3>
+                            <p class="mb-0">Tasdiqlangan</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h3>67</h3>
+                            <p class="mb-0">Qayta ishlanmagan</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h3>78%</h3>
+                            <p class="mb-0">O'rtacha sifat</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <h6>Oxirgi 7 kun</h6>
+                <canvas id="groupChart" height="100"></canvas>
+            </div>
+        `;
+        
+        // Initialize mini chart
+        const ctx = document.getElementById('groupChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan', 'Yak'],
+                datasets: [{
+                    label: 'E\'lonlar',
+                    data: [12, 19, 3, 5, 2, 3, 18],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }, 800);
+}
+
+function applyFilters() {
+    const form = document.getElementById('filterForm');
+    const formData = new FormData(form);
+    const url = new URL(window.location);
+    
+    // Clear existing filters
+    url.searchParams.delete('page');
+    
+    for (let [key, value] of formData.entries()) {
+        if (value.trim()) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    }
+    
+    window.location.href = url.toString();
+}
+
+function clearFilters() {
+    document.getElementById('filterForm').reset();
+    const url = new URL(window.location);
+    ['group_name', 'min_announcements', 'min_quality', 'activity_level', 'page'].forEach(param => {
+        url.searchParams.delete(param);
+    });
+    window.location.href = url.toString();
+}
+
+function showNotification(message, type = 'info') {
+    const alertClass = `alert-${type}`;
+    const iconClass = type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas ${iconClass} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification && notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+// Animate cards on scroll
+function animateCardsOnScroll() {
+    const cards = document.querySelectorAll('.group-card');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.animationPlayState = 'running';
+            }
+        });
+    }, { threshold: 0.1 });
+
+    cards.forEach(card => {
+        card.style.animationPlayState = 'paused';
+        observer.observe(card);
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    animateCardsOnScroll();
+});
+</script>
+
+{% endblock content %}

@@ -1,12 +1,19 @@
 from rest_framework import viewsets, filters
 from django.core.files.base import ContentFile
 import requests
+from django.utils import timezone
+from django.shortcuts import render
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.http import JsonResponse
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q, Count, Avg
+from django.db.models import Q, Count, Avg, Max
+from django.shortcuts import get_object_or_404
+from django.core.paginator import Paginator
+from .forms import QuickVerifyForm, AnnouncementFilterForm
+from django.db.models import Q
 from datetime import datetime, timedelta
-from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage, RentalPhoto
+from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage, RentalPhoto, MediaFile
 from .serializers import (
     MonitoredGroupSerializer, 
     RentalAnnouncementSerializer, 
@@ -15,6 +22,7 @@ from .serializers import (
 )
 
 TELEGRAM_BOT_TOKEN = "7413765945:AAHqyNsG2tvyUt0XgBd5OT0FuTA94t1SpEc"
+
 class MonitoredGroupViewSet(viewsets.ModelViewSet):
     queryset = MonitoredGroup.objects.all()
     serializer_class = MonitoredGroupSerializer
@@ -255,3 +263,305 @@ class MonitoredMessageViewSet(viewsets.ModelViewSet):
     search_fields = ['message_text', 'first_name', 'username']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
+    
+
+def dashboard_view(request):
+    """Dashboard sahifasi"""
+    # Bugungi sana
+    today = datetime.now().date()
+    
+    # Bugungi e'lonlar soni
+    today_announcements_count = RentalAnnouncement.objects.filter(
+        created_at__date=today
+    ).count()
+    
+    # Tasdiqlangan e'lonlar soni (bugun)
+    today_verified_count = RentalAnnouncement.objects.filter(
+        created_at__date=today,
+        is_verified=True
+    ).count()
+    
+    # Yuqori ishonch darajasiga ega e'lonlar (bugun)
+    today_high_confidence = RentalAnnouncement.objects.filter(
+        created_at__date=today,
+        confidence_score__gte=0.7
+    ).count()
+    
+    # Qayta ishlanmagan e'lonlar soni
+    unprocessed_count = RentalAnnouncement.objects.filter(
+        is_processed=False
+    ).count()
+    
+    # Oxirgi 7 kunlik statistika
+    last_7_days = []
+    announcement_counts = []
+    verified_counts = []
+    
+    for i in range(6, -1, -1):
+        date = today - timedelta(days=i)
+        last_7_days.append(date.strftime('%m-%d'))
+        
+        daily_count = RentalAnnouncement.objects.filter(
+            created_at__date=date
+        ).count()
+        announcement_counts.append(daily_count)
+        
+        daily_verified = RentalAnnouncement.objects.filter(
+            created_at__date=date,
+            is_verified=True
+        ).count()
+        verified_counts.append(daily_verified)
+    
+    # Top guruhlar (oxirgi 7 kun)
+    week_ago = today - timedelta(days=7)
+    top_groups = RentalAnnouncement.objects.filter(
+        created_at__date__gte=week_ago
+    ).values(
+        'group__title', 'group__chat_id'
+    ).annotate(
+        count=Count('id'),
+        avg_confidence=Avg('confidence_score')
+    ).order_by('-count')[:5]
+    
+    # So'nggi e'lonlar
+    recent_announcements = RentalAnnouncement.objects.select_related('group').order_by('-created_at')[:10]
+    
+    # Ishonch darajasi bo'yicha taqsimot
+    confidence_stats = {
+        'very_high': RentalAnnouncement.objects.filter(confidence_score__gte=0.8).count(),
+        'high': RentalAnnouncement.objects.filter(confidence_score__gte=0.6, confidence_score__lt=0.8).count(),
+        'medium': RentalAnnouncement.objects.filter(confidence_score__gte=0.4, confidence_score__lt=0.6).count(),
+        'low': RentalAnnouncement.objects.filter(confidence_score__lt=0.4).count(),
+    }
+    
+    context = {
+        'today_announcements_count': today_announcements_count,
+        'today_verified_count': today_verified_count,
+        'today_high_confidence': today_high_confidence,
+        'unprocessed_count': unprocessed_count,
+        'days': last_7_days,
+        'announcement_counts': announcement_counts,
+        'verified_counts': verified_counts,
+        'top_groups': top_groups,
+        'recent_announcements': recent_announcements,
+        'confidence_stats': confidence_stats
+    }
+    
+    return render(request, 'dashboard.html', context)
+
+def dashboard_api_stats(request):
+    """Dashboard uchun API statistika"""
+    today = datetime.now().date()
+    
+    # Umum statistika
+    total_announcements = RentalAnnouncement.objects.count()
+    verified_announcements = RentalAnnouncement.objects.filter(is_verified=True).count()
+    unprocessed_announcements = RentalAnnouncement.objects.filter(is_processed=False).count()
+    
+    # Bugungi statistika
+    today_announcements = RentalAnnouncement.objects.filter(created_at__date=today).count()
+    today_verified = RentalAnnouncement.objects.filter(created_at__date=today, is_verified=True).count()
+    
+    # Media fayllar statistikasi
+    total_media = MediaFile.objects.count()
+    photos_count = MediaFile.objects.filter(media_type='photo').count()
+    videos_count = MediaFile.objects.filter(media_type='video').count()
+    
+    return JsonResponse({
+        'total_announcements': total_announcements,
+        'verified_announcements': verified_announcements,
+        'unprocessed_announcements': unprocessed_announcements,
+        'today_announcements': today_announcements,
+        'today_verified': today_verified,
+        'total_media': total_media,
+        'photos_count': photos_count,
+        'videos_count': videos_count
+    })
+    
+    
+    
+
+def groups_list_view(request):
+    """Barcha guruhlar ro'yxati"""
+    search_query = request.GET.get('search', '')
+    sort_by = request.GET.get('sort', '-created_at')
+    
+    # Guruhlarni olish va statistika bilan
+    groups = MonitoredGroup.objects.annotate(
+        total_announcements=Count('rental_announcements'),
+        verified_announcements=Count('rental_announcements', filter=Q(rental_announcements__is_verified=True)),
+        today_announcements=Count('rental_announcements', 
+                                filter=Q(rental_announcements__created_at__date=timezone.now().date())),
+        avg_confidence=Avg('rental_announcements__confidence_score'),
+        last_announcement=Max('rental_announcements__created_at')
+    ).filter(
+        total_announcements__gt=0  # Faqat e'lonlari bor guruhlar
+    )
+    
+    # Qidiruv
+    if search_query:
+        groups = groups.filter(
+            Q(title__icontains=search_query) | 
+            Q(chat_id__icontains=search_query)
+        )
+    
+    # Saralash
+    valid_sorts = ['title', '-title', 'total_announcements', '-total_announcements', 
+                   'created_at', '-created_at', 'avg_confidence', '-avg_confidence']
+    if sort_by in valid_sorts:
+        groups = groups.order_by(sort_by)
+    else:
+        groups = groups.order_by('-total_announcements')
+    
+    # Pagination
+    paginator = Paginator(groups, 12)
+    page_number = request.GET.get('page')
+    groups_page = paginator.get_page(page_number)
+    
+    context = {
+        'groups': groups_page,
+        'search_query': search_query,
+        'sort_by': sort_by,
+        'total_groups': paginator.count,
+    }
+    
+    return render(request, 'groups_list.html', context)
+
+def group_detail_view(request, group_id):
+    """Guruh tafsilotlari va e'lonlari"""
+    group = get_object_or_404(MonitoredGroup, id=group_id)
+    
+    # Filter form
+    filter_form = AnnouncementFilterForm(request.GET)
+    verify_form = QuickVerifyForm()
+    
+    # E'lonlarni olish
+    announcements = RentalAnnouncement.objects.filter(group=group).select_related('group').prefetch_related('photo_files').order_by('-created_at')
+    
+    # Filtrlarni qo'llash
+    if filter_form.is_valid():
+        data = filter_form.cleaned_data
+        
+        if data.get('search'):
+            announcements = announcements.filter(
+                Q(message_text__icontains=data['search']) |
+                Q(first_name__icontains=data['search']) |
+                Q(username__icontains=data['search'])
+            )
+        
+        if data.get('confidence_min') is not None:
+            announcements = announcements.filter(confidence_score__gte=data['confidence_min'])
+        
+        if data.get('is_verified') == 'true':
+            announcements = announcements.filter(is_verified=True)
+        elif data.get('is_verified') == 'false':
+            announcements = announcements.filter(is_verified=False)
+            
+        if data.get('has_media'):
+            announcements = announcements.filter(
+                Q(photos__isnull=False) | Q(videos__isnull=False)
+            ).exclude(photos=[], videos=[])
+            
+        if data.get('date_from'):
+            announcements = announcements.filter(created_at__date__gte=data['date_from'])
+            
+        if data.get('date_to'):
+            announcements = announcements.filter(created_at__date__lte=data['date_to'])
+    
+    # Infinite scroll uchun AJAX so'rov tekshirish
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        page = request.GET.get('page', 1)
+        paginator = Paginator(announcements, 10)
+        announcements_page = paginator.get_page(page)
+        
+        # JSON response qaytarish
+        announcements_data = []
+        for announcement in announcements_page:
+            announcements_data.append({
+                'id': announcement.id,
+                'message_text': announcement.message_text[:200] + '...' if len(announcement.message_text or '') > 200 else announcement.message_text,
+                'first_name': announcement.first_name,
+                'username': announcement.username,
+                'confidence_score': announcement.confidence_score,
+                'is_verified': announcement.is_verified,
+                'is_processed': announcement.is_processed,
+                'created_at': announcement.created_at.strftime('%Y-%m-%d %H:%M'),
+                'photos_count': len(announcement.photos or []),
+                'videos_count': len(announcement.videos or []),
+                'has_media': bool(announcement.photos or announcement.videos),
+                'has_photos': announcement.photo_files.exists()
+            })
+        
+        return JsonResponse({
+            'announcements': announcements_data,
+            'has_next': announcements_page.has_next(),
+            'next_page_number': announcements_page.next_page_number() if announcements_page.has_next() else None
+        })
+    
+    # Oddiy HTTP so'rov uchun
+    paginator = Paginator(announcements, 10)
+    page_number = request.GET.get('page', 1)
+    announcements_page = paginator.get_page(page_number)
+    
+    # Guruh statistikasi
+    group_stats = {
+        'total_announcements': announcements.count(),
+        'verified_announcements': announcements.filter(is_verified=True).count(),
+        'unprocessed_announcements': announcements.filter(is_processed=False).count(),
+        'high_confidence_announcements': announcements.filter(confidence_score__gte=0.7).count(),
+        'today_announcements': announcements.filter(created_at__date=timezone.now().date()).count(),
+        'avg_confidence': announcements.aggregate(avg=Avg('confidence_score'))['avg'] or 0,
+    }
+    
+    context = {
+        'group': group,
+        'announcements': announcements_page,
+        'filter_form': filter_form,
+        'verify_form': verify_form,
+        'group_stats': group_stats,
+        'total_announcements': paginator.count,
+        'TELEGRAM_BOT_TOKEN': '7413765945:AAHqyNsG2tvyUt0XgBd5OT0FuTA94t1SpEc'
+    }
+    
+    return render(request, 'group_detail.html', context)
+
+def quick_verify_announcement(request):
+    """E'lonni tez tasdiqlash/rad etish"""
+    if request.method == 'POST':
+        form = QuickVerifyForm(request.POST)
+        if form.is_valid():
+            announcement_id = form.cleaned_data['announcement_id']
+            action = form.cleaned_data['action']
+            
+            try:
+                announcement = RentalAnnouncement.objects.get(id=announcement_id)
+                
+                if action == 'verify':
+                    announcement.is_verified = True
+                    announcement.is_processed = True
+                    message = 'E\'lon tasdiqlandi'
+                    status = 'success'
+                elif action == 'reject':
+                    announcement.is_verified = False
+                    announcement.is_processed = True
+                    message = 'E\'lon rad etildi'
+                    status = 'warning'
+                else:
+                    return JsonResponse({'success': False, 'message': 'Noto\'g\'ri harakat'})
+                
+                announcement.save()
+                
+                return JsonResponse({
+                    'success': True, 
+                    'message': message,
+                    'status': status,
+                    'new_state': {
+                        'is_verified': announcement.is_verified,
+                        'is_processed': announcement.is_processed
+                    }
+                })
+                
+            except RentalAnnouncement.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'E\'lon topilmadi'})
+    
+    return JsonResponse({'success': False, 'message': 'Noto\'g\'ri so\'rov'})

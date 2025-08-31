@@ -1,0 +1,1647 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-inner">
+        <!-- Header with Advanced Filters -->
+        <div class="d-flex align-items-left align-items-md-center flex-column flex-md-row pt-2 pb-4">
+            <div>
+                <h3 class="fw-bold mb-3">
+                    <i class="fas fa-home me-2 text-primary"></i>
+                    Ijara E'lonlari Dashboard
+                </h3>
+                <h6 class="op-7 mb-2">Telegram guruhlaridagi ijara e'lonlarini monitoring qilish tizimi</h6>
+            </div>
+            <div class="ms-md-auto py-2 py-md-0">
+                <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#filterModal">
+                    <i class="fas fa-filter me-1"></i> Filtrlar
+                </button>
+                <button class="btn btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync-alt me-1"></i> Yangilash
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Bar (Collapsible) -->
+        <div class="row mb-4" id="filterBar" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body py-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <select class="form-select form-select-sm" id="groupFilter" onchange="applyFilters()">
+                                    <option value="">Barcha guruhlar</option>
+                                    {% for group in top_groups %}
+                                    <option value="{{ group.group__chat_id }}">{{ group.group__title|truncatechars:30 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select form-select-sm" id="confidenceFilter" onchange="applyFilters()">
+                                    <option value="">Barcha darajalar</option>
+                                    <option value="0.8">Juda yuqori (80%+)</option>
+                                    <option value="0.6">Yuqori (60%+)</option>
+                                    <option value="0.4">O'rta (40%+)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select form-select-sm" id="statusFilter" onchange="applyFilters()">
+                                    <option value="">Barcha holatlar</option>
+                                    <option value="verified">Tasdiqlangan</option>
+                                    <option value="unprocessed">Qayta ishlanmagan</option>
+                                    <option value="processed">Qayta ishlangan</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="date" class="form-control form-control-sm" id="dateFromFilter" onchange="applyFilters()">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="date" class="form-control form-control-sm" id="dateToFilter" onchange="applyFilters()">
+                            </div>
+                            <div class="col-md-1">
+                                <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-time Status Indicator -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <div class="spinner-grow spinner-grow-sm text-success me-2" role="status" id="liveIndicator">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <strong>Real vaqt rejimi:</strong> 
+                        <span id="lastUpdateTime">Oxirgi yangilanish: {{ "now"|date:"H:i:s" }}</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-info" onclick="toggleAutoRefresh()">
+                        <i class="fas fa-play" id="autoRefreshIcon"></i>
+                        <span id="autoRefreshText">Avtomatik yangilashni yoqish</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards Row with Enhanced Design -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stats-card bg-gradient-primary text-white h-100 position-relative overflow-hidden">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="stats-icon">
+                                <i class="fas fa-home fa-2x"></i>
+                            </div>
+                            <div class="ms-3">
+                                <div class="stats-number" data-target="{{ today_announcements_count }}">0</div>
+                                <div class="stats-label">Bugungi E'lonlar</div>
+                                <div class="stats-change">
+                                    <i class="fas fa-arrow-up me-1"></i>
+                                    <span class="small">+12% kechadan</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stats-sparkline" id="todaySparkline"></div>
+                    </div>
+                    <div class="card-stats-wave">
+                        <svg viewBox="0 0 1200 120" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M0,50 Q300,20 600,50 T1200,50 L1200,120 L0,120 Z" fill="rgba(255,255,255,0.1)"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stats-card bg-gradient-success text-white h-100 position-relative overflow-hidden">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="stats-icon">
+                                <i class="fas fa-check-circle fa-2x"></i>
+                            </div>
+                            <div class="ms-3">
+                                <div class="stats-number" data-target="{{ today_verified_count }}">0</div>
+                                <div class="stats-label">Tasdiqlangan</div>
+                                <div class="stats-change">
+                                    <i class="fas fa-arrow-up me-1"></i>
+                                    <span class="small">{% if today_announcements_count > 0 %}{{ today_verified_count|floatformat:1 }}%{% else %}0%{% endif %} nisbat</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-stats-wave">
+                        <svg viewBox="0 0 1200 120" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M0,80 Q300,40 600,80 T1200,80 L1200,120 L0,120 Z" fill="rgba(255,255,255,0.1)"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stats-card bg-gradient-warning text-white h-100 position-relative overflow-hidden">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="stats-icon">
+                                <i class="fas fa-star fa-2x"></i>
+                            </div>
+                            <div class="ms-3">
+                                <div class="stats-number" data-target="{{ today_high_confidence }}">0</div>
+                                <div class="stats-label">Yuqori Sifat</div>
+                                <div class="stats-change">
+                                    <i class="fas fa-chart-line me-1"></i>
+                                    <span class="small">70%+ ishonch</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-stats-wave">
+                        <svg viewBox="0 0 1200 120" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M0,60 Q300,30 600,60 T1200,60 L1200,120 L0,120 Z" fill="rgba(255,255,255,0.1)"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stats-card bg-gradient-danger text-white h-100 position-relative overflow-hidden">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="stats-icon">
+                                <i class="fas fa-clock fa-2x"></i>
+                            </div>
+                            <div class="ms-3">
+                                <div class="stats-number" data-target="{{ unprocessed_count }}">0</div>
+                                <div class="stats-label">Kutilmoqda</div>
+                                <div class="stats-change pulse-animation">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    <span class="small">Ishlov berish kerak</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-stats-wave">
+                        <svg viewBox="0 0 1200 120" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M0,70 Q300,35 600,70 T1200,70 L1200,120 L0,120 Z" fill="rgba(255,255,255,0.1)"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row with Enhanced Design -->
+        <div class="row mb-4">
+            <div class="col-xl-8 mb-4">
+                <div class="card chart-card h-100">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-1">Oxirgi 7 kunlik Tendensiya</h5>
+                                <p class="text-muted mb-0">E'lonlar soni va tasdiqlash dinamikasi</p>
+                            </div>
+                            <div class="chart-actions">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary active" onclick="toggleChartView('week')">7 kun</button>
+                                    <button type="button" class="btn btn-outline-primary" onclick="toggleChartView('month')">30 kun</button>
+                                </div>
+                                <div class="dropdown ms-2">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" onclick="exportChart('png')">PNG rasm</a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="exportChart('pdf')">PDF</a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="exportChart('csv')">CSV ma'lumot</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body pt-2">
+                        <div class="chart-container position-relative" style="height: 380px">
+                            <canvas id="statisticsChart"></canvas>
+                            <div class="chart-loading" id="chartLoading" style="display: none;">
+                                <div class="d-flex align-items-center justify-content-center h-100">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                    <span class="ms-2">Ma'lumotlar yuklanmoqda...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <h5 class="card-title mb-1">Ishonch Darajasi Taqsimoti</h5>
+                        <p class="text-muted mb-0">E'lonlar sifati bo'yicha</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <div class="confidence-summary">
+                                <h2 class="text-primary mb-0" id="totalQualityCount">
+                                    {{ confidence_stats.very_high|add:confidence_stats.high }}
+                                </h2>
+                                <p class="text-muted">Yuqori sifatli e'lonlar</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container mb-3" style="height: 200px">
+                            <canvas id="confidenceChart"></canvas>
+                        </div>
+                        
+                        <div class="confidence-legends">
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="legend-color bg-success rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                                        <div>
+                                            <div class="fw-semibold">Juda Yuqori</div>
+                                            <div class="text-muted small">{{ confidence_stats.very_high }} ta (80%+)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="legend-color bg-warning rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                                        <div>
+                                            <div class="fw-semibold">Yuqori</div>
+                                            <div class="text-muted small">{{ confidence_stats.high }} ta (60-79%)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="legend-color bg-info rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                                        <div>
+                                            <div class="fw-semibold">O'rta</div>
+                                            <div class="text-muted small">{{ confidence_stats.medium }} ta (40-59%)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="legend-color bg-danger rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+                                        <div>
+                                            <div class="fw-semibold">Past</div>
+                                            <div class="text-muted small">{{ confidence_stats.low }} ta (<40%)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Tavsiya etilgan darajada:</span>
+                                <span class="fw-semibold text-success">
+                                    {% if confidence_stats.very_high|add:confidence_stats.high > 0 %}
+                                    {% widthratio confidence_stats.very_high|add:confidence_stats.high confidence_stats.very_high|add:confidence_stats.high|add:confidence_stats.medium|add:confidence_stats.low 100 %}%
+                                    {% else %}
+                                    0%
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enhanced Data Tables Row -->
+        <div class="row mb-4">
+            <div class="col-xl-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-1">Eng Faol Guruhlar</h5>
+                                <p class="text-muted mb-0">Oxirgi hafta</p>
+                            </div>
+                            <div>
+                                <a href="{% url 'groups_list' %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-plus"></i> Barchasi
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            {% if top_groups %}
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="border-0">Guruh</th>
+                                        <th class="border-0 text-center">E'lonlar</th>
+                                        <th class="border-0 text-end">Sifat</th>
+                                        <th class="border-0 text-end">Harakatlar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="groupsTableBody">
+                                    {% for group in top_groups %}
+                                    <tr class="group-row" data-group-id="{{ group.group__chat_id }}">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="avatar avatar-sm bg-primary bg-gradient rounded-circle me-3 d-flex align-items-center justify-content-center">
+                                                    <i class="fas fa-users text-white small"></i>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-0 fw-semibold">{{ group.group__title|truncatechars:25 }}</h6>
+                                                    <small class="text-muted">ID: {{ group.group__chat_id }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-success-subtle text-success fw-semibold">
+                                                {{ group.count }}
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="d-flex align-items-center justify-content-end">
+                                                <small class="text-muted me-2">{{ group.avg_confidence|floatformat:0 }}%</small>
+                                                <div class="progress" style="width: 50px; height: 4px;">
+                                                    <div class="progress-bar 
+                                                        {% if group.avg_confidence >= 80 %}bg-success{% elif group.avg_confidence >= 60 %}bg-warning{% elif group.avg_confidence >= 40 %}bg-info{% else %}bg-danger{% endif %}" 
+                                                        style="width: {{ group.avg_confidence }}%"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                <h6 class="text-muted">Hozircha faol guruhlar yo'q</h6>
+                                <p class="text-muted small">Guruhlarni monitoring qilish boshlanganda ma'lumotlar ko'rinadi</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title mb-1">So'nggi E'lonlar</h5>
+                                <p class="text-muted mb-0">Real vaqt yangilanishlari</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshRecentAnnouncements()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                        <div id="recentAnnouncementsList">
+                            {% if recent_announcements %}
+                            {% for announcement in recent_announcements %}
+                            <div class="announcement-item border-start border-3 ps-3 mb-3 position-relative
+                                {% if announcement.is_verified %}border-success{% elif announcement.confidence_score >= 0.7 %}border-warning{% else %}border-secondary{% endif %}"
+                                data-announcement-id="{{ announcement.id }}">
+                                
+                                <div class="d-flex align-items-start">
+                                    <div class="announcement-avatar me-3">
+                                        {% if announcement.is_verified %}
+                                        <div class="avatar avatar-sm bg-success bg-gradient rounded-circle d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-check text-white"></i>
+                                        </div>
+                                        {% elif announcement.confidence_score >= 0.7 %}
+                                        <div class="avatar avatar-sm bg-warning bg-gradient rounded-circle d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-star text-white"></i>
+                                        </div>
+                                        {% else %}
+                                        <div class="avatar avatar-sm bg-secondary bg-gradient rounded-circle d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-home text-white"></i>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <h6 class="mb-0 fw-semibold">
+                                                {{ announcement.first_name|default:"Noma'lum foydalanuvchi" }}
+                                                {% if announcement.username %}
+                                                <small class="text-muted">@{{ announcement.username }}</small>
+                                                {% endif %}
+                                            </h6>
+                                            <div class="text-end">
+                                                <span class="badge 
+                                                    {% if announcement.confidence_score >= 0.8 %}bg-success{% elif announcement.confidence_score >= 0.6 %}bg-warning{% elif announcement.confidence_score >= 0.4 %}bg-info{% else %}bg-secondary{% endif %}">
+                                                    {{ announcement.confidence_score|floatformat:1 }}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
+                                        <p class="text-muted small mb-1">
+                                            <i class="fas fa-users me-1"></i>
+                                            {{ announcement.group.title|truncatechars:30 }}
+                                        </p>
+                                        
+                                        <p class="mb-2 text-dark">
+                                            {{ announcement.message_text|truncatechars:100|default:"Matn mavjud emas" }}
+                                        </p>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="media-indicators">
+                                                {% if announcement.photos %}
+                                                <span class="badge bg-primary-subtle text-primary me-1">
+                                                    <i class="fas fa-image me-1"></i>{{ announcement.photos|length }}
+                                                </span>
+                                                {% endif %}
+                                                {% if announcement.videos %}
+                                                <span class="badge bg-info-subtle text-info me-1">
+                                                    <i class="fas fa-video me-1"></i>{{ announcement.videos|length }}
+                                                </span>
+                                                {% endif %}
+                                                {% if announcement.documents %}
+                                                <span class="badge bg-secondary-subtle text-secondary me-1">
+                                                    <i class="fas fa-file me-1"></i>{{ announcement.documents|length }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <div class="d-flex align-items-center">
+                                                <small class="text-muted me-2">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    {{ announcement.created_at|timesince }} oldin
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if not forloop.last %}
+                            <hr class="text-muted my-2">
+                            {% endif %}
+                            {% endfor %}
+                            {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <h6 class="text-muted">Hozircha yangi e'lonlar yo'q</h6>
+                                <p class="text-muted small mb-3">E'lonlar qabul qilinganda shu yerda ko'rinadi</p>
+                                <button class="btn btn-primary btn-sm" onclick="refreshData()">
+                                    <i class="fas fa-sync-alt me-1"></i>Yangilash
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions with Enhanced Design -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <h5 class="card-title mb-1">Tezkor Harakatlar</h5>
+                        <p class="text-muted mb-0">Tez-tez ishlatiladigan funksiyalar</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-lg-3 col-md-6">
+                                <div class="quick-action-card h-100 p-3 text-center border rounded hover-lift position-relative overflow-hidden">
+                                    <div class="quick-action-icon mb-3">
+                                        <i class="fas fa-eye fa-2x text-primary"></i>
+                                    </div>
+                                    <h6 class="fw-semibold mb-2">Qayta ishlash</h6>
+                                    <p class="text-muted small mb-3">Yangi e'lonlarni ko'rib chiqish</p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-danger">{{ unprocessed_count }}</span>
+                                    </div>
+                                    <div class="quick-action-bg">
+                                        <i class="fas fa-eye opacity-1"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-md-6">
+                                <div class="quick-action-card h-100 p-3 text-center border rounded hover-lift position-relative overflow-hidden">
+                                    <div class="quick-action-icon mb-3">
+                                        <i class="fas fa-check-double fa-2x text-success"></i>
+                                    </div>
+                                    <h6 class="fw-semibold mb-2">Tasdiqlangan</h6>
+                                    <p class="text-muted small mb-3">Tasdiqlangan e'lonlar</p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-success">{{ today_verified_count }}</span>
+                                    </div>
+                                    <div class="quick-action-bg">
+                                        <i class="fas fa-check-double opacity-1"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-md-6">
+                                <div class="quick-action-card h-100 p-3 text-center border rounded hover-lift position-relative overflow-hidden">
+                                    <div class="quick-action-icon mb-3">
+                                        <i class="fas fa-star fa-2x text-warning"></i>
+                                    </div>
+                                    <h6 class="fw-semibold mb-2">Yuqori sifat</h6>
+                                    <p class="text-muted small mb-3">70% dan yuqori</p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-warning">{{ today_high_confidence }}</span>
+                                    </div>
+                                    <div class="quick-action-bg">
+                                        <i class="fas fa-star opacity-1"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3 col-md-6">
+                                <div class="quick-action-card h-100 p-3 text-center border rounded hover-lift position-relative overflow-hidden">
+                                    <div class="quick-action-icon mb-3">
+                                        <i class="fas fa-chart-bar fa-2x text-info"></i>
+                                    </div>
+                                    <h6 class="fw-semibold mb-2">Statistika</h6>
+                                    <p class="text-muted small mb-3">Batafsil hisobotlar</p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-info">API</span>
+                                    </div>
+                                    <a href="/api/rental-announcements/statistics/" class="btn btn-info btn-sm" target="_blank">
+                                        Ko'rish
+                                    </a>
+                                    <div class="quick-action-bg">
+                                        <i class="fas fa-chart-bar opacity-1"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics Row -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-transparent border-0 pb-0">
+                        <h5 class="card-title mb-1">Tizim Ko'rsatkichlari</h5>
+                        <p class="text-muted mb-0">Umumiy statistik ma'lumotlar</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-lg-4 col-md-6">
+                                <div class="metric-card text-center">
+                                    <div class="metric-icon mb-2">
+                                        <i class="fas fa-database fa-2x text-primary"></i>
+                                    </div>
+                                    <h4 class="metric-number text-primary">{{ top_groups|length }}+</h4>
+                                    <p class="metric-label text-muted mb-0">Monitoring Guruhlari</p>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6">
+                                <div class="metric-card text-center">
+                                    <div class="metric-icon mb-2">
+                                        <i class="fas fa-chart-line fa-2x text-success"></i>
+                                    </div>
+                                    <h4 class="metric-number text-success" id="avgDaily">-</h4>
+                                    <p class="metric-label text-muted mb-0">O'rtacha Kunlik E'lonlar</p>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-md-6">
+                                <div class="metric-card text-center">
+                                    <div class="metric-icon mb-2">
+                                        <i class="fas fa-percentage fa-2x text-warning"></i>
+                                    </div>
+                                    <h4 class="metric-number text-warning" id="verificationRate">
+                                        {% if today_announcements_count > 0 %}
+                                        {% widthratio today_verified_count today_announcements_count 100 %}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </h4>
+                                    <p class="metric-label text-muted mb-0">Tasdiqlash Foizi</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Kengaytirilgan Filtrlar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Guruh</label>
+                        <select class="form-select" id="modalGroupFilter">
+                            <option value="">Barcha guruhlar</option>
+                            {% for group in top_groups %}
+                            <option value="{{ group.group__chat_id }}">{{ group.group__title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ishonch darajasi</label>
+                        <select class="form-select" id="modalConfidenceFilter">
+                            <option value="">Barcha darajalar</option>
+                            <option value="0.8">Juda yuqori (80%+)</option>
+                            <option value="0.6">Yuqori (60%+)</option>
+                            <option value="0.4">O'rta (40%+)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="modalStatusFilter">
+                            <option value="">Barcha holatlar</option>
+                            <option value="verified">Tasdiqlangan</option>
+                            <option value="unprocessed">Qayta ishlanmagan</option>
+                            <option value="processed">Qayta ishlangan</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Media mavjudligi</label>
+                        <select class="form-select" id="modalMediaFilter">
+                            <option value="">Barcha e'lonlar</option>
+                            <option value="has_media">Mediasi bor</option>
+                            <option value="no_media">Mediasiz</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Boshlanish sanasi</label>
+                        <input type="date" class="form-control" id="modalDateFrom">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Tugash sanasi</label>
+                        <input type="date" class="form-control" id="modalDateTo">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="clearModalFilters()">Tozalash</button>
+                <button type="button" class="btn btn-primary" onclick="applyModalFilters()">Qo'llash</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+/* Enhanced Styles */
+.stats-card {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.stats-icon {
+    opacity: 0.8;
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stats-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    font-weight: 500;
+}
+
+.stats-change {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+.card-stats-wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    overflow: hidden;
+}
+
+.chart-card {
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.chart-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+
+.announcement-item {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.announcement-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+}
+
+.quick-action-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+}
+
+.quick-action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.quick-action-bg {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    font-size: 3rem;
+    opacity: 0.05;
+    z-index: 1;
+}
+
+.hover-lift:hover {
+    transform: translateY(-3px);
+}
+
+.pulse-animation {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.metric-card {
+    padding: 1.5rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.metric-number {
+    margin: 0;
+    font-weight: 700;
+}
+
+.group-row {
+    transition: all 0.3s ease;
+}
+
+.group-row:hover {
+    background-color: #f8f9fa;
+    transform: scale(1.01);
+}
+
+.legend-color {
+    flex-shrink: 0;
+}
+
+.confidence-summary {
+    padding: 1rem;
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+
+.avatar {
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-sm {
+    width: 30px;
+    height: 30px;
+}
+
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.bg-gradient-danger {
+    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+}
+
+.bg-success-subtle {
+    background-color: #d1e7dd;
+}
+
+.bg-primary-subtle {
+    background-color: #cfe2ff;
+}
+
+.bg-info-subtle {
+    background-color: #d1ecf1;
+}
+
+.bg-secondary-subtle {
+    background-color: #e2e3e5;
+}
+
+.text-success {
+    color: #198754 !important;
+}
+
+.text-primary {
+    color: #0d6efd !important;
+}
+
+.text-info {
+    color: #0dcaf0 !important;
+}
+
+.text-secondary {
+    color: #6c757d !important;
+}
+
+/* Loading animation */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .stats-number {
+        font-size: 2rem;
+    }
+    
+    .chart-container {
+        height: 250px !important;
+    }
+    
+    .announcement-item {
+        padding: 8px;
+    }
+    
+    .quick-action-card {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<script>
+// Global variables
+let autoRefreshInterval;
+let isAutoRefreshEnabled = false;
+let currentFilters = {};
+
+// Chart data
+const chartData = {
+    days: {{ days|safe }},
+    announcements: {{ announcement_counts|safe }},
+    verified: {{ verified_counts|safe }}
+};
+
+const confidenceData = {
+    veryHigh: {{ confidence_stats.very_high }},
+    high: {{ confidence_stats.high }},
+    medium: {{ confidence_stats.medium }},
+    low: {{ confidence_stats.low }}
+};
+
+// Initialize charts
+let statisticsChart;
+let confidenceChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    initializeAnimations();
+    setupEventListeners();
+    updateLastUpdateTime();
+});
+
+function initializeCharts() {
+    // Main statistics chart
+    const ctx = document.getElementById('statisticsChart').getContext('2d');
+    statisticsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.days,
+            datasets: [
+                {
+                    label: 'Jami E\'lonlar',
+                    data: chartData.announcements,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 6,
+                    pointHoverRadius: 10,
+                    pointBackgroundColor: '#667eea',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 3,
+                    pointHoverBackgroundColor: '#667eea',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 3
+                },
+                {
+                    label: 'Tasdiqlangan',
+                    data: chartData.verified,
+                    borderColor: '#11998e',
+                    backgroundColor: 'rgba(17, 153, 142, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 6,
+                    pointHoverRadius: 10,
+                    pointBackgroundColor: '#11998e',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 3,
+                    pointHoverBackgroundColor: '#11998e',
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        font: {
+                            size: 13,
+                            weight: 500
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(102, 126, 234, 0.8)',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    displayColors: true,
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label + '-kun';
+                        },
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y + ' ta';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        stepSize: 1,
+                        font: {
+                            size: 11
+                        },
+                        color: '#6c757d'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        font: {
+                            size: 11
+                        },
+                        color: '#6c757d'
+                    }
+                }
+            },
+            elements: {
+                point: {
+                    hoverBackgroundColor: '#fff'
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+
+    // Confidence chart
+    const confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+    confidenceChart = new Chart(confidenceCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Juda Yuqori (80%+)', 'Yuqori (60-79%)', 'O\'rta (40-59%)', 'Past (<40%)'],
+            datasets: [{
+                data: [
+                    confidenceData.veryHigh,
+                    confidenceData.high,
+                    confidenceData.medium,
+                    confidenceData.low
+                ],
+                backgroundColor: [
+                    '#28a745',
+                    '#ffc107',
+                    '#17a2b8',
+                    '#dc3545'
+                ],
+                borderWidth: 0,
+                hoverOffset: 8,
+                hoverBorderWidth: 3,
+                hoverBorderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
+                            return context.label + ': ' + context.parsed + ' ta (' + percentage + '%)';
+                        }
+                    }
+                }
+            },
+            cutout: '75%',
+            animation: {
+                animateScale: true,
+                animateRotate: true
+            }
+        }
+    });
+}
+
+function initializeAnimations() {
+    // Animate cards
+    const cards = document.querySelectorAll('.card, .stats-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+            card.classList.add('fade-in');
+        }, index * 100);
+    });
+
+    // Animate numbers
+    animateNumbers();
+
+    // Calculate average daily
+    const avgDaily = chartData.announcements.reduce((a, b) => a + b, 0) / chartData.announcements.length;
+    document.getElementById('avgDaily').textContent = Math.round(avgDaily);
+}
+
+function animateNumbers() {
+    const numberElements = document.querySelectorAll('.stats-number');
+    numberElements.forEach(element => {
+        const finalNumber = parseInt(element.getAttribute('data-target'));
+        if (!isNaN(finalNumber)) {
+            let currentNumber = 0;
+            const increment = finalNumber / 50;
+            const timer = setInterval(() => {
+                currentNumber += increment;
+                if (currentNumber >= finalNumber) {
+                    element.textContent = finalNumber;
+                    clearInterval(timer);
+                } else {
+                    element.textContent = Math.floor(currentNumber);
+                }
+            }, 30);
+        }
+    });
+}
+
+function setupEventListeners() {
+    // Chart view toggle
+    window.toggleChartView = function(period) {
+        document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // Here you would typically make an AJAX call to get new data
+        // For now, we'll just show a loading state
+        showChartLoading();
+        
+        setTimeout(() => {
+            hideChartLoading();
+            // Update chart with new data
+        }, 1000);
+    };
+
+    // Export functionality
+    window.exportChart = function(format) {
+        switch(format) {
+            case 'png':
+                const link = document.createElement('a');
+                link.download = 'ijara-elonlari-chart.png';
+                link.href = statisticsChart.toBase64Image();
+                link.click();
+                break;
+            case 'pdf':
+                // Implementation for PDF export
+                alert('PDF eksport funksiyasi tez orada qo\'shiladi');
+                break;
+            case 'csv':
+                exportToCSV();
+                break;
+        }
+    };
+}
+
+function showChartLoading() {
+    document.getElementById('chartLoading').style.display = 'flex';
+}
+
+function hideChartLoading() {
+    document.getElementById('chartLoading').style.display = 'none';
+}
+
+function exportToCSV() {
+    const data = chartData.days.map((day, index) => ({
+        kun: day,
+        jami_elonlar: chartData.announcements[index],
+        tasdiqlangan: chartData.verified[index]
+    }));
+    
+    const csv = convertToCSV(data);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ijara-elonlari-statistika.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function convertToCSV(data) {
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => Object.values(row).join(','));
+    return [headers, ...rows].join('\n');
+}
+
+// Filter functions
+function toggleFilterBar() {
+    const filterBar = document.getElementById('filterBar');
+    filterBar.style.display = filterBar.style.display === 'none' ? 'block' : 'none';
+}
+
+function applyFilters() {
+    const group = document.getElementById('groupFilter').value;
+    const confidence = document.getElementById('confidenceFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    const dateFrom = document.getElementById('dateFromFilter').value;
+    const dateTo = document.getElementById('dateToFilter').value;
+
+    currentFilters = { group, confidence, status, dateFrom, dateTo };
+    
+    // Apply visual filters to the interface
+    filterAnnouncements();
+    filterGroups();
+    
+    // Show filter indicator
+    showFilterIndicator();
+}
+
+function clearFilters() {
+    document.getElementById('groupFilter').value = '';
+    document.getElementById('confidenceFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('dateFromFilter').value = '';
+    document.getElementById('dateToFilter').value = '';
+    
+    currentFilters = {};
+    
+    // Reset visual filters
+    resetFilters();
+    hideFilterIndicator();
+}
+
+function applyModalFilters() {
+    // Copy values from modal to main filters
+    document.getElementById('groupFilter').value = document.getElementById('modalGroupFilter').value;
+    document.getElementById('confidenceFilter').value = document.getElementById('modalConfidenceFilter').value;
+    document.getElementById('statusFilter').value = document.getElementById('modalStatusFilter').value;
+    document.getElementById('dateFromFilter').value = document.getElementById('modalDateFrom').value;
+    document.getElementById('dateToFilter').value = document.getElementById('modalDateTo').value;
+    
+    // Show filter bar and apply filters
+    document.getElementById('filterBar').style.display = 'block';
+    applyFilters();
+    
+    // Hide modal
+    bootstrap.Modal.getInstance(document.getElementById('filterModal')).hide();
+}
+
+function clearModalFilters() {
+    document.getElementById('modalGroupFilter').value = '';
+    document.getElementById('modalConfidenceFilter').value = '';
+    document.getElementById('modalStatusFilter').value = '';
+    document.getElementById('modalMediaFilter').value = '';
+    document.getElementById('modalDateFrom').value = '';
+    document.getElementById('modalDateTo').value = '';
+}
+
+function filterAnnouncements() {
+    const announcements = document.querySelectorAll('.announcement-item');
+    announcements.forEach(item => {
+        let shouldShow = true;
+        
+        // Apply confidence filter
+        if (currentFilters.confidence) {
+            const badge = item.querySelector('.badge');
+            if (badge) {
+                const confidence = parseFloat(badge.textContent) / 100;
+                if (confidence < parseFloat(currentFilters.confidence)) {
+                    shouldShow = false;
+                }
+            }
+        }
+        
+        item.style.display = shouldShow ? 'block' : 'none';
+    });
+}
+
+function filterGroups() {
+    const groups = document.querySelectorAll('.group-row');
+    groups.forEach(row => {
+        let shouldShow = true;
+        
+        if (currentFilters.group) {
+            const groupId = row.getAttribute('data-group-id');
+            if (groupId !== currentFilters.group) {
+                shouldShow = false;
+            }
+        }
+        
+        row.style.display = shouldShow ? 'table-row' : 'none';
+    });
+}
+
+function resetFilters() {
+    document.querySelectorAll('.announcement-item, .group-row').forEach(item => {
+        item.style.display = '';
+    });
+}
+
+function showFilterIndicator() {
+    const activeFilters = Object.values(currentFilters).filter(v => v).length;
+    if (activeFilters > 0) {
+        let indicator = document.querySelector('.filter-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.className = 'filter-indicator alert alert-info alert-dismissible fade show';
+            indicator.innerHTML = `
+                <i class="fas fa-filter me-2"></i>
+                <span class="filter-count">${activeFilters}</span> ta filtr faol
+                <button type="button" class="btn-close" onclick="clearFilters()"></button>
+            `;
+            document.querySelector('.page-inner').insertBefore(indicator, document.querySelector('.row'));
+        } else {
+            indicator.querySelector('.filter-count').textContent = activeFilters;
+        }
+    }
+}
+
+function hideFilterIndicator() {
+    const indicator = document.querySelector('.filter-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+// Auto refresh functionality
+function toggleAutoRefresh() {
+    const icon = document.getElementById('autoRefreshIcon');
+    const text = document.getElementById('autoRefreshText');
+    
+    if (isAutoRefreshEnabled) {
+        clearInterval(autoRefreshInterval);
+        isAutoRefreshEnabled = false;
+        icon.className = 'fas fa-play';
+        text.textContent = 'Avtomatik yangilashni yoqish';
+        document.getElementById('liveIndicator').style.display = 'none';
+    } else {
+        autoRefreshInterval = setInterval(refreshData, 30000); // 30 seconds
+        isAutoRefreshEnabled = true;
+        icon.className = 'fas fa-pause';
+        text.textContent = 'Avtomatik yangilashni o\'chirish';
+        document.getElementById('liveIndicator').style.display = 'inline-block';
+    }
+}
+
+function updateLastUpdateTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('uz-UZ');
+    document.getElementById('lastUpdateTime').textContent = `Oxirgi yangilanish: ${timeString}`;
+}
+
+// Action functions
+function refreshData() {
+    const btn = document.querySelector('[onclick="refreshData()"]');
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Yuklanmoqda...';
+    btn.disabled = true;
+
+    // Show loading on stats cards
+    document.querySelectorAll('.stats-number').forEach(el => {
+        el.style.opacity = '0.5';
+    });
+
+    // Simulate API call
+    setTimeout(() => {
+        updateLastUpdateTime();
+        btn.innerHTML = originalContent;
+        btn.disabled = false;
+        
+        // Restore stats opacity
+        document.querySelectorAll('.stats-number').forEach(el => {
+            el.style.opacity = '1';
+        });
+        
+        // In a real implementation, you would reload the page or update data via AJAX
+        // location.reload();
+        
+        // Show success message
+        showNotification('Ma\'lumotlar muvaffaqiyatli yangilandi', 'success');
+    }, 2000);
+}
+
+function refreshRecentAnnouncements() {
+    const btn = event.target.closest('button');
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        btn.innerHTML = originalContent;
+        btn.disabled = false;
+        updateLastUpdateTime();
+        showNotification('So\'nggi e\'lonlar yangilandi', 'info');
+    }, 1500);
+}
+
+function loadMoreGroups() {
+    // Simulate loading more groups
+    showNotification('Barcha guruhlar yuklanmoqda...', 'info');
+    setTimeout(() => {
+        window.open('/admin/rental/monitoredgroup/', '_blank');
+    }, 500);
+}
+
+function viewGroupDetails(groupId) {
+    showNotification(`Guruh #${groupId} ma'lumotlari yuklanmoqda...`, 'info');
+    // In real implementation, open modal or navigate to group details
+}
+
+function filterByGroup(groupId) {
+    document.getElementById('groupFilter').value = groupId;
+    document.getElementById('filterBar').style.display = 'block';
+    applyFilters();
+    showNotification('Guruh bo\'yicha filtr qo\'llandi', 'success');
+}
+
+function viewAnnouncementDetails(announcementId) {
+    showNotification(`E'lon #${announcementId} batafsil ma'lumotlari...`, 'info');
+    // Open modal or navigate to announcement details
+    setTimeout(() => {
+        window.open(`/admin/rental/rentalannouncement/${announcementId}/change/`, '_blank');
+    }, 500);
+}
+
+function verifyAnnouncement(announcementId) {
+    if (confirm('Bu e\'lonni tasdiqlashni xohlaysizmi?')) {
+        // Simulate API call to verify announcement
+        const announcementItem = document.querySelector(`[data-announcement-id="${announcementId}"]`);
+        if (announcementItem) {
+            // Update visual state
+            announcementItem.classList.remove('border-warning', 'border-secondary');
+            announcementItem.classList.add('border-success');
+            
+            const avatar = announcementItem.querySelector('.announcement-avatar .avatar');
+            avatar.className = 'avatar avatar-sm bg-success bg-gradient rounded-circle d-flex align-items-center justify-content-center';
+            avatar.innerHTML = '<i class="fas fa-check text-white"></i>';
+            
+            // Remove verify button
+            const verifyBtn = announcementItem.querySelector('[onclick*="verifyAnnouncement"]');
+            if (verifyBtn) {
+                verifyBtn.remove();
+            }
+        }
+        
+        showNotification('E\'lon muvaffaqiyatli tasdiqlandi', 'success');
+    }
+}
+
+function viewAllAnnouncements() {
+    window.open('/admin/rental/rentalannouncement/', '_blank');
+}
+
+// Utility functions
+function showNotification(message, type = 'info') {
+    const alertClass = `alert-${type}`;
+    const iconClass = type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas ${iconClass} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (notification && notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+// Responsive chart resize
+window.addEventListener('resize', function() {
+    if (statisticsChart) statisticsChart.resize();
+    if (confidenceChart) confidenceChart.resize();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl + R or F5 for refresh
+    if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
+        e.preventDefault();
+        refreshData();
+    }
+    
+    // Ctrl + F for filters
+    if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('filterModal').querySelector('[data-bs-toggle="modal"]').click();
+    }
+    
+    // Escape to clear filters
+    if (e.key === 'Escape') {
+        clearFilters();
+    }
+});
+
+// Touch/swipe support for mobile
+let touchStartY = 0;
+let touchEndY = 0;
+
+document.addEventListener('touchstart', e => {
+    touchStartY = e.changedTouches[0].screenY;
+});
+
+document.addEventListener('touchend', e => {
+    touchEndY = e.changedTouches[0].screenY;
+    handleSwipe();
+});
+
+function handleSwipe() {
+    const swipeThreshold = 100;
+    const diff = touchStartY - touchEndY;
+    
+    if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0) {
+            // Swipe up - refresh
+            refreshData();
+        }
+    }
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title], [data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl, {
+            delay: { show: 500, hide: 100 }
+        });
+    });
+});
+
+// Performance monitoring
+let performanceMetrics = {
+    pageLoadTime: 0,
+    chartRenderTime: 0,
+    lastRefreshTime: 0
+};
+
+window.addEventListener('load', function() {
+    performanceMetrics.pageLoadTime = performance.now();
+});
+
+// Debug mode (for development)
+let debugMode = false;
+
+function toggleDebugMode() {
+    debugMode = !debugMode;
+    if (debugMode) {
+        console.log('Debug mode enabled');
+        console.log('Current filters:', currentFilters);
+        console.log('Performance metrics:', performanceMetrics);
+        console.log('Chart data:', { chartData, confidenceData });
+    }
+}
+
+// Export debug info
+function exportDebugInfo() {
+    const debugInfo = {
+        timestamp: new Date().toISOString(),
+        filters: currentFilters,
+        performance: performanceMetrics,
+        chartData: chartData,
+        confidenceData: confidenceData,
+        userAgent: navigator.userAgent,
+        viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight
+        }
+    };
+    
+    const blob = new Blob([JSON.stringify(debugInfo, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard-debug-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+// Console commands for debugging (only in development)
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    window.dashboard = {
+        toggleDebug: toggleDebugMode,
+        exportDebug: exportDebugInfo,
+        refreshData: refreshData,
+        filters: currentFilters,
+        charts: { statisticsChart, confidenceChart }
+    };
+    
+    console.log('🏠 Dashboard debugging tools available at window.dashboard');
+}
+</script>
+
+{% endblock content %}

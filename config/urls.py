@@ -18,10 +18,16 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
+from monitor import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('monitor.urls'))
+    path('api/', include('monitor.urls')),
+    path('api/dashboard-stats/', views.dashboard_api_stats, name='dashboard-stats'),
+    path('', views.dashboard_view, name='dashboard'),
+    path('groups/', views.groups_list_view, name='groups_list'),
+    path('groups/<int:group_id>/', views.group_detail_view, name='group_detail'),
+    path('quick-verify/', views.quick_verify_announcement, name='quick_verify'),
 ]
 
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

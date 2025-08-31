@@ -1,0 +1,97 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Django</title>
+  <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon" />
+
+  <script src="{% static 'js/plugin/webfont/webfont.min.js' %}"></script>
+  <script>
+    WebFont.load({
+      google: { families: ["Public Sans:300,400,500,600,700"] },
+      custom: {
+        families: [
+          "Font Awesome 5 Solid",
+          "Font Awesome 5 Regular",
+          "Font Awesome 5 Brands",
+          "simple-line-icons",
+        ],
+        urls: ["{% static 'css/fonts.min.css' %}"],
+      },
+      active: function () {
+        sessionStorage.fonts = true
+      },
+    });
+  </script>
+
+  <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/plugins.min.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/kaiadmin.min.css' %}" />
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="sidebar" data-background-color="dark">
+      <div class="sidebar-logo">
+        <div class="logo-header" data-background-color="dark">
+          <div class="nav-toggle">
+            <button class="btn btn-toggle toggle-sidebar">
+              <i class="gg-menu-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-wrapper scrollbar scrollbar-inner">
+        <div class="sidebar-content">
+          <ul class="nav nav-secondary">
+
+            <li class="nav-item">
+              <a href="{% url 'dashboard' %}" class="collapsed">
+                <i class="fas fa-home"></i>
+                <p>Asosiy</p>
+              </a>
+            </li>
+
+            <li class="nav-item">
+              <a href="{% url 'groups_list' %}" class="collapsed">
+                <i class="fas fa-users-cog"></i>
+                <p>Guruxlar</p>
+              </a>
+            </li>
+
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-panel">
+      
+
+      <div class="content">
+        {% block content %}
+        {% endblock %}
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="{% static 'js/core/jquery-3.7.1.min.js' %}"></script>
+  <script src="{% static 'js/core/popper.min.js' %}"></script>
+  <script src="{% static 'js/core/bootstrap.min.js' %}"></script>
+
+  <script src="{% static 'js/plugin/jquery-scrollbar/jquery.scrollbar.min.js' %}"></script>
+
+  <script src="{% static 'js/plugin/chart.js/chart.min.js' %}"></script>
+
+  <script src="{% static 'js/plugin/datatables/datatables.min.js' %}"></script>
+
+  <script src="{% static 'js/kaiadmin.min.js' %}"></script>
+
+</body>
+
+</html>
