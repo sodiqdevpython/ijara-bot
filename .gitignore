@@ -2,3 +2,5 @@ env
 .vscode
 media
 db.sqlite3
+__pycache__
+migrations

@@ -5,6 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'monitoredgroup', views.MonitoredGroupViewSet)
 router.register(r'rental-announcements', views.RentalAnnouncementViewSet)
+router.register(r'rental-media-files', views.RentalMediaFileViewSet)  # Bu qo'shildi
 router.register(r'monitored-messages', views.MonitoredMessageViewSet)  # Eski system
 
 urlpatterns = [

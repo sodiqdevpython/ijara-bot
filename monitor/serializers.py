@@ -22,10 +22,10 @@ class RentalMediaFileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'file_url', 'display_name']
 
 
-
 class RentalAnnouncementSerializer(serializers.ModelSerializer):
     group = serializers.StringRelatedField()
     total_media_count = serializers.SerializerMethodField()
+    media_files = RentalMediaFileSerializer(many=True, read_only=True)  # Media fayllarni ham ko'rsatish
 
     class Meta:
         model = RentalAnnouncement
@@ -35,12 +35,15 @@ class RentalAnnouncementSerializer(serializers.ModelSerializer):
             'message_id', 'confidence_score',
             'created_at', 'updated_at',
             'is_processed', 'is_verified',
-            'total_media_count',
+            'total_media_count', 'media_files',  # media_files qo'shildi
+            'rental_keywords_found', 'contact_info',
+            'location_latitude', 'location_longitude', 'location_address',
+            'photos_data', 'videos_data', 'documents_data', 
+            'audio_files_data', 'voice_messages_data'
         ]
 
     def get_total_media_count(self, obj):
         return obj.total_media_count
-
 
 
 class RentalAnnouncementListSerializer(serializers.ModelSerializer):
@@ -62,18 +65,6 @@ class RentalAnnouncementListSerializer(serializers.ModelSerializer):
     
     def get_has_media(self, obj):
         return obj.total_media_count > 0
-    
-    def get_confidence_percentage(self, obj):
-        return int(obj.confidence_score * 100)
-
-
-class MonitoredMessageSerializer(serializers.ModelSerializer):
-    """Eski model uchun serializer (agar kerak bo'lsa)"""
-    group_name = serializers.CharField(source='group.title', read_only=True)
-    
-    class Meta:
-        model = MonitoredMessage
-        fields = '__all__'
     
     def get_confidence_percentage(self, obj):
         return int(obj.confidence_score * 100)
