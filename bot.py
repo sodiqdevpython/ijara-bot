@@ -11,7 +11,8 @@ from aiogram.enums import ChatType, ParseMode
 from aiogram.client.default import DefaultBotProperties
 
 BOT_TOKEN = "7413765945:AAHqyNsG2tvyUt0XgBd5OT0FuTA94t1SpEc"
-API_BASE = "http://127.0.0.1:8000"
+# API_BASE = "http://127.0.0.1:8000"
+API_BASE = "http://web:8000"
 TIMEOUT = 800
 
 MEDIA_GROUP_TIMEOUT = 2
