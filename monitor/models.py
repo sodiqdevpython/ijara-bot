@@ -1,9 +1,4 @@
 from django.db import models
-import os
-
-def rental_media_upload_path(instance, filename):
-    """Media fayllar uchun upload path"""
-    return f'rental_media/{instance.announcement.id}/{filename}'
 
 class MonitoredGroup(models.Model):
     chat_id = models.BigIntegerField(unique=True)
@@ -25,16 +20,16 @@ class RentalAnnouncement(models.Model):
     message_text = models.TextField(blank=True, null=True)
     message_id = models.BigIntegerField()
     
-    # Media fayllar (JSON ma'lumotlari)
-    photos_data = models.JSONField(default=list, blank=True)  # [{"file_id": "", "width": 0, "height": 0}]
-    videos_data = models.JSONField(default=list, blank=True)  
-    documents_data = models.JSONField(default=list, blank=True)  
-    audio_files_data = models.JSONField(default=list, blank=True)  
-    voice_messages_data = models.JSONField(default=list, blank=True)  
+    # Media fayllar
+    photos = models.JSONField(default=list, blank=True)  # [{"file_id": "", "file_unique_id": "", "width": 0, "height": 0}]
+    videos = models.JSONField(default=list, blank=True)  # Video ma'lumotlari
+    documents = models.JSONField(default=list, blank=True)  # Hujjatlar
+    audio_files = models.JSONField(default=list, blank=True)  # Audio fayllar
+    voice_messages = models.JSONField(default=list, blank=True)  # Ovozli xabarlar
     
     # Ijara aniqlash ma'lumotlari
-    rental_keywords_found = models.JSONField(default=list, blank=True)  
-    confidence_score = models.FloatField(default=0.0)  
+    rental_keywords_found = models.JSONField(default=list, blank=True)  # Topilgan kalit so'zlar
+    confidence_score = models.FloatField(default=0.0)  # Ishonch darajasi (0-1)
     
     # Joylashuv ma'lumotlari
     location_latitude = models.FloatField(null=True, blank=True)
@@ -42,7 +37,7 @@ class RentalAnnouncement(models.Model):
     location_address = models.TextField(blank=True, null=True)
     
     # Kontakt ma'lumotlari
-    contact_info = models.JSONField(default=dict, blank=True)  
+    contact_info = models.JSONField(default=dict, blank=True)  # Telefon, username va boshqalar
     
     # To'liq raw data
     raw_telegram_data = models.JSONField()
@@ -53,7 +48,7 @@ class RentalAnnouncement(models.Model):
     
     # Status
     is_processed = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)  
+    is_verified = models.BooleanField(default=False)  # Admin tomonidan tasdiqlangan
     
     class Meta:
         ordering = ['-created_at']
@@ -66,83 +61,8 @@ class RentalAnnouncement(models.Model):
     
     def __str__(self):
         return f"[{self.group.title}] {self.first_name or ''} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
-    
-    @property
-    def total_media_count(self):
-        return (len(self.photos_data or []) + 
-                len(self.videos_data or []) + 
-                len(self.documents_data or []) +
-                len(self.audio_files_data or []) +
-                len(self.voice_messages_data or []))
 
-
-class RentalMediaFile(models.Model):
-    """Media fayllarni saqlash uchun alohida model"""
-    MEDIA_TYPES = [
-        ('photo', 'Photo'),
-        ('video', 'Video'),
-        ('document', 'Document'),
-        ('audio', 'Audio'),
-        ('voice', 'Voice Message'),
-        ('video_note', 'Video Note'),
-    ]
-    
-    announcement = models.ForeignKey(RentalAnnouncement, on_delete=models.CASCADE, related_name='media_files')
-    media_type = models.CharField(max_length=20, choices=MEDIA_TYPES)
-    
-    # Telegram ma'lumotlari
-    file_id = models.CharField(max_length=512)
-    file_unique_id = models.CharField(max_length=512)
-    
-    # Fayl ma'lumotlari
-    file_size = models.BigIntegerField(null=True, blank=True)
-    mime_type = models.CharField(max_length=256, null=True, blank=True)
-    file_name = models.CharField(max_length=512, null=True, blank=True)
-    
-    # Rasm/video o'lchamlari
-    width = models.IntegerField(null=True, blank=True)
-    height = models.IntegerField(null=True, blank=True)
-    duration = models.IntegerField(null=True, blank=True)  # video/audio uchun
-    
-    # Saqlangan fayl
-    local_file = models.FileField(upload_to=rental_media_upload_path, null=True, blank=True)
-    download_url = models.URLField(null=True, blank=True)  # Telegram URL
-    
-    # Metadata
-    telegram_data = models.JSONField(default=dict)
-    
-    # Vaqt
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_downloaded = models.BooleanField(default=False)
-    download_error = models.TextField(null=True, blank=True)
-    
-    class Meta:
-        indexes = [
-            models.Index(fields=['announcement', 'media_type']),
-            models.Index(fields=['file_id']),
-        ]
-    
-    def __str__(self):
-        return f"{self.get_media_type_display()} - {self.announcement}"
-    
-    @property
-    def file_url(self):
-        """Fayl URL ni qaytarish"""
-        if self.local_file and os.path.exists(self.local_file.path):
-            return self.local_file.url
-        elif self.download_url:
-            return self.download_url
-        return None
-    
-    @property
-    def display_name(self):
-        """Ko'rsatish uchun nom"""
-        if self.file_name:
-            return self.file_name
-        return f"{self.get_media_type_display()}_{self.id}"
-
-
-# Eski MonitoredMessage modelni saqlab qolish
+# Eski MonitoredMessage modelni saqlab qolish (agar kerak bo'lsa)
 class MonitoredMessage(models.Model):
     group = models.ForeignKey(MonitoredGroup, on_delete=models.CASCADE, related_name='messages')
     user_id = models.BigIntegerField()

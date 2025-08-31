@@ -4,12 +4,11 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Avg
 from datetime import datetime, timedelta
-from .models import MonitoredGroup, RentalAnnouncement, RentalMediaFile, MonitoredMessage
+from .models import MonitoredGroup, RentalAnnouncement, MonitoredMessage
 from .serializers import (
     MonitoredGroupSerializer, 
     RentalAnnouncementSerializer, 
     RentalAnnouncementListSerializer,
-    RentalMediaFileSerializer,
     MonitoredMessageSerializer
 )
 
@@ -22,51 +21,8 @@ class MonitoredGroupViewSet(viewsets.ModelViewSet):
     search_fields = ['title']
 
 
-class RentalMediaFileViewSet(viewsets.ModelViewSet):
-    """Media fayllar uchun ViewSet"""
-    queryset = RentalMediaFile.objects.select_related('announcement', 'announcement__group').all()
-    serializer_class = RentalMediaFileSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    
-    filterset_fields = [
-        'announcement', 'media_type', 'is_downloaded',
-        'announcement__group', 'announcement__user_id'
-    ]
-    search_fields = ['file_name', 'mime_type', 'file_id']
-    ordering_fields = ['created_at', 'file_size']
-    ordering = ['-created_at']
-    
-    @action(detail=True, methods=['post'])
-    def mark_downloaded(self, request, pk=None):
-        """Media faylni yuklab olingan deb belgilash"""
-        media_file = self.get_object()
-        media_file.is_downloaded = True
-        media_file.download_error = None
-        media_file.save()
-        
-        return Response({
-            'message': 'Media file marked as downloaded',
-            'is_downloaded': media_file.is_downloaded
-        })
-    
-    @action(detail=True, methods=['post'])
-    def mark_download_error(self, request, pk=None):
-        """Media fayl yuklanmasligini va xatosini belgilash"""
-        media_file = self.get_object()
-        error_message = request.data.get('error', 'Unknown download error')
-        
-        media_file.is_downloaded = False
-        media_file.download_error = error_message
-        media_file.save()
-        
-        return Response({
-            'message': 'Download error recorded',
-            'error': media_file.download_error
-        })
-
-
 class RentalAnnouncementViewSet(viewsets.ModelViewSet):
-    queryset = RentalAnnouncement.objects.select_related('group').prefetch_related('media_files').all()
+    queryset = RentalAnnouncement.objects.select_related('group').all()
     serializer_class = RentalAnnouncementSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
@@ -119,14 +75,14 @@ class RentalAnnouncementViewSet(viewsets.ModelViewSet):
         # Media mavjudligi bo'yicha filtrlash
         has_media = self.request.query_params.get('has_media')
         if has_media == 'true':
-            queryset = queryset.exclude(
-                photos_data=[],
-                videos_data=[],
-                documents_data=[],
-                audio_files_data=[],
-                voice_messages_data=[]
+            queryset = queryset.filter(
+                Q(photos__isnull=False) | Q(videos__isnull=False) | 
+                Q(documents__isnull=False) | Q(audio_files__isnull=False) |
+                Q(voice_messages__isnull=False)
+            ).exclude(
+                photos=[], videos=[], documents=[], 
+                audio_files=[], voice_messages=[]
             )
-
         
         return queryset
     
