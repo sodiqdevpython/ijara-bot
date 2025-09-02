@@ -1,3 +1,8 @@
+Qisqasi ushbu web ilovani ishga tushirsa bot ishga tushadi keyin shu bot ni token ni almashtirib istalgan guruxga telegram guruxga qo'shib qo'ysangiz bo'ldi aynan kvartira bo'yicha gaplashilgan gaplarni ajratib alohida ko'rsatib beradi bot admin bo'lishi shart emas shunchaki guruxga qo'shilsa istalgan guruxni kuzatib tura oladi ishlatish uchun:
+
+docker-compose up --build
+
+
 <img width="1919" height="970" alt="image" src="https://github.com/user-attachments/assets/fc9844e6-a936-4dc6-9052-8037fe841c06" />
 
 <img width="1652" height="814" alt="image" src="https://github.com/user-attachments/assets/1f2272ab-9bbe-4334-ab42-932520a3abbb" />
